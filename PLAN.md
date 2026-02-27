@@ -65,6 +65,7 @@ enum AlignmentStatus {
 
 struct RepoOwnership {
     repo_name: String,
+    pushed_at: Option<DateTime>,        // last push timestamp, from GraphQL
     catalog_owner: Option<String>,      // from catalog-info.yaml spec.owner
     codeowners_team: Option<String>,    // from CODEOWNERS top-level rule
     catalog_team_exists: Option<bool>,  // validated against GitHub teams
@@ -85,30 +86,219 @@ struct AuditSummary {
 }
 ```
 
-## Implementation Steps
+## Use Cases
 
-### Step 1: CLI skeleton + config
+### Broken PR review gates
 
-Set up `clap` with all flags. Map args to a `Config` struct.
+CODEOWNERS enforces who must approve PRs via branch protection. If the referenced team doesn't exist anymore, the gate silently fails — PRs merge without the right reviewers.
 
 ```
-ownrs [OPTIONS]
+Given an org that requires CODEOWNERS approval via branch protection
+And some teams have been renamed or dissolved after a reorg
+When I run `ownrs org acme-corp --status stale --format csv`
+Then I get a list of repos where CODEOWNERS references teams that no longer exist
+So I can fix the gates before unreviewed code ships to production
+```
 
+### Preventing wrong-team incident routing
+
+When Backstage drives on-call routing and CODEOWNERS drives code review, ownership drift means incidents get routed to the wrong team. This isn't a tool you run mid-incident — it's a proactive check run on a regular cadence to catch drift before it matters.
+
+```
+Given Backstage drives incident routing
+And CODEOWNERS drives code review
+And ownership sources can drift apart over time
+When I run `ownrs org acme-corp --status mismatched,stale --detail` on a regular cadence
+Then I catch repos where routing would go to the wrong team
+So I can fix them before the next outage
+```
+
+### Post-reorg cleanup
+
+Teams get renamed, merged, split. Ownership metadata across hundreds of repos doesn't update itself.
+
+```
+Given "team-legacy" was dissolved and its repos split between "team-alpha" and "team-beta"
+When I run `ownrs org acme-corp --team team-legacy`
+Then I see every repo that still references "team-legacy" in either source
+So I know what needs updating and nothing falls through the cracks
+```
+
+### Backstage rollout — bootstrapping the catalog
+
+You're adopting Backstage. You need to know the starting state: which repos already have catalog-info.yaml, which have CODEOWNERS you could bootstrap from, which have nothing.
+
+```
+Given an org with 400 repos, some with CODEOWNERS, few with catalog-info.yaml
+When I run `ownrs org acme-corp --status codeowners-only,missing --detail`
+Then "codeowners-only" repos are where I can auto-generate catalog-info.yaml from existing CODEOWNERS
+And "missing" repos are where I need to start from scratch
+```
+
+### Compliance audit
+
+SOC2/SOX/etc. require designated owners for production services. An auditor asks "show me every service has an owner."
+
+```
+Given an upcoming SOC2 audit
+When I run `ownrs org acme-corp --status missing --format csv`
+Then I get a list of repos with no ownership metadata at all
+So I can remediate before the audit window
+And re-run to produce evidence that coverage is 100%
+```
+
+### Pre-shipping ownership check
+
+A developer is about to enable branch protection with CODEOWNERS required reviews on their repo. They want to make sure everything is wired up correctly first.
+
+```
+Given I'm in my repo's directory
+And I just added a CODEOWNERS file and catalog-info.yaml
+When I run `ownrs repo`
+Then it tells me whether both files reference the same team
+And whether that team actually exists in the org
+So I know branch protection won't silently fail when I turn it on
+```
+
+### Stale repo cleanup
+
+Finding candidates for archiving: repos nobody has touched in a long time that also have no owner.
+
+```
+Given an org with hundreds of repos accumulated over years
+When I run `ownrs org acme-corp --sort stale --status missing --detail`
+Then I see unowned repos ordered by how long since they were last pushed
+With pushed_at timestamps so I can distinguish 6-month-old from 6-year-old repos
+So I can build an archival shortlist
+```
+
+### Use case → command mapping
+
+| Use case | Command |
+|----------|---------|
+| Broken PR review gates | `ownrs org acme-corp --status stale` |
+| Proactive incident routing | `ownrs org acme-corp --status mismatched,stale --detail` |
+| Post-reorg cleanup | `ownrs org acme-corp --team team-legacy` |
+| Backstage rollout | `ownrs org acme-corp --status codeowners-only,missing --detail` |
+| Compliance audit | `ownrs org acme-corp --status missing --format csv` |
+| Stale repo cleanup | `ownrs org acme-corp --sort stale --status missing --detail` |
+| Pre-shipping check | `ownrs repo` |
+
+## Usage Lifecycle
+
+1. **Ad hoc discovery** — run once to see the state of the world, triage what needs fixing.
+2. **CI enforcement** — add to a scheduled GitHub Actions workflow so ownership never drifts again.
+
+The tool supports both modes: human-readable tables for ad hoc use, structured output (`--format json`) and non-zero exit codes for CI.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All repos pass (or no repos matched the filter) |
+| 1 | One or more repos matched the `--status` filter (drift detected) |
+| 2 | Runtime error (auth failure, network error, etc.) |
+
+When `--status` is specified, exit code 1 means "the filter matched something" — i.e., the problem you were looking for exists. When `--status` is not specified (full report mode), exit code is always 0 — the tool is reporting, not asserting.
+
+### CI examples
+
+**Org-wide audit** — platform team runs on a schedule to catch drift across the whole org:
+
+```yaml
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # weekly Monday 9am
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ownrs org my-org --status stale,mismatched,missing --format json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Team-scoped audit** — a team runs on their own repos:
+
+```yaml
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ownrs org my-org --team my-team --status stale,mismatched,missing --format json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Single repo check** — runs in a repo's own CI when ownership files change:
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - 'CODEOWNERS'
+      - '.github/CODEOWNERS'
+      - 'catalog-info.yaml'
+jobs:
+  ownership-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ownrs repo --status stale,mismatched,missing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+## CLI Design
+
+Two subcommands:
+
+```
+ownrs org <ORG> [OPTIONS]
+ownrs repo [ORG/REPO] [OPTIONS]
+```
+
+### `ownrs org <ORG>`
+
+Audit repos across a GitHub org. Default output is summary stats.
+
+```
 Options:
-  --org <ORG>          GitHub org (required, or detected from git remote)
-  --limit <N>          Audit first N repos (default: 25)
-  --all                Audit all repos
+  --limit <N>          Audit only the first N repos (default: all)
   --sort <ORDER>       Sort: stale (default), active, name
-  --team <NAME>        Filter to repos owned by team
-  --missing-only       Only show repos with no ownership
+  --team <TEAM>        Filter to repos referencing this team (comma-separated for multiple)
+  --status <STATUS>    Filter by alignment status (comma-separated: aligned, mismatched, stale, missing, catalog-only, codeowners-only)
   --format <FMT>       Output: table (default), csv, json
-  --table              Show per-repo breakdown
-  --detail             Per-repo breakdown with notes
+  --detail             Show per-repo breakdown with notes (default is summary only)
+```
+
+### `ownrs repo [ORG/REPO]`
+
+Audit a single repo. If `ORG/REPO` is omitted, detect from the git remote of the current directory. Default output is full detail — all three sources, alignment status, and notes.
+
+```
+Options:
+  --status <STATUS>    Filter by alignment status (comma-separated: aligned, mismatched, stale, missing, catalog-only, codeowners-only)
+  --format <FMT>       Output: table (default), json
+```
+
+### Global options (all subcommands)
+
+```
   --refresh            Force re-fetch cached data
   --cache-dir <DIR>    Cache directory (default: ~/.cache/ownrs)
   --cache-ttl <SECS>   Cache TTL in seconds (default: 86400)
   --token <TOKEN>      GitHub token (default: GITHUB_TOKEN env var)
 ```
+
+## Implementation Steps
+
+### Step 1: CLI skeleton + config
+
+Set up `clap` with two subcommands (`org`, `repo`). Map args to a `Config` struct with a `Scope` enum (`Org`, `Repo`).
 
 **Files**: `main.rs`, `cli.rs`, `config.rs`
 
@@ -190,6 +380,9 @@ Keep it simple. `--org` flag + env var is enough. Config files are scope creep f
 
 **Org-agnostic from day one.**
 `--org` is required (or auto-detected from git remote). No hardcoded org names anywhere.
+
+**`--team` is a content filter, not a scoped fetch.**
+The `--team` flag filters by matching the team name in CODEOWNERS and catalog-info.yaml file contents, not via GitHub's team→repo API. This means it works for dissolved teams (the post-reorg use case), but it doesn't make the command faster — the full org is fetched either way.
 
 ## Non-Goals (v1)
 
