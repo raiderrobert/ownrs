@@ -79,7 +79,7 @@ async fn run_org(
     sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
     sp.set_message("Fetching repos...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
-    let mut repos = list_repos(client, org, |count| {
+    let mut repos = list_repos(client, org, cache, config.refresh, |count| {
         sp.set_message(format!("Fetching repos... {count} so far"));
     }).await?;
     sp.finish_with_message(format!("Fetched {} repos", repos.len()));

@@ -1,10 +1,12 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+use crate::cache::file_cache::FileCache;
 
 use super::client::GitHubClient;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoInfo {
     pub name: String,
     pub pushed_at: Option<DateTime<Utc>>,
@@ -60,8 +62,19 @@ struct GraphQLError {
 pub async fn list_repos(
     client: &GitHubClient,
     org: &str,
+    cache: &FileCache,
+    refresh: bool,
     on_progress: impl Fn(usize),
 ) -> Result<Vec<RepoInfo>> {
+    let cache_key = format!("repos_{org}");
+
+    if !refresh {
+        if let Some(cached) = cache.get::<Vec<RepoInfo>>(&cache_key)? {
+            on_progress(cached.len());
+            return Ok(cached);
+        }
+    }
+
     let mut repos = Vec::new();
     let mut cursor: Option<String> = None;
 
@@ -129,5 +142,6 @@ pub async fn list_repos(
         cursor = connection.page_info.end_cursor;
     }
 
+    cache.set(&cache_key, &repos)?;
     Ok(repos)
 }
