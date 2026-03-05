@@ -67,14 +67,22 @@ async fn run_org(
     detail: bool,
 ) -> anyhow::Result<()> {
     // Fetch teams
-    eprint_step("Fetching teams...");
+    let sp = ProgressBar::new_spinner();
+    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_message("Fetching teams...");
+    sp.enable_steady_tick(std::time::Duration::from_millis(100));
     let valid_teams = fetch_team_slugs(client, org, cache, config.refresh).await?;
-    eprintln!(" {} teams found", valid_teams.len());
+    sp.finish_with_message(format!("Fetched {} teams", valid_teams.len()));
 
     // Fetch repos
-    eprint_step("Fetching repos...");
-    let mut repos = list_repos(client, org).await?;
-    eprintln!(" {} repos found", repos.len());
+    let sp = ProgressBar::new_spinner();
+    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_message("Fetching repos...");
+    sp.enable_steady_tick(std::time::Duration::from_millis(100));
+    let mut repos = list_repos(client, org, |count| {
+        sp.set_message(format!("Fetching repos... {count} so far"));
+    }).await?;
+    sp.finish_with_message(format!("Fetched {} repos", repos.len()));
 
     // Sort
     match sort {
@@ -172,9 +180,12 @@ async fn run_repo(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
 ) -> anyhow::Result<()> {
-    eprint_step("Fetching teams...");
+    let sp = ProgressBar::new_spinner();
+    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_message("Fetching teams...");
+    sp.enable_steady_tick(std::time::Duration::from_millis(100));
     let valid_teams = fetch_team_slugs(client, org, cache, config.refresh).await?;
-    eprintln!(" {} teams found", valid_teams.len());
+    sp.finish_with_message(format!("Fetched {} teams", valid_teams.len()));
 
     let repo_names = vec![repo.to_string()];
     let sources = fetch_all(client, org, &repo_names, cache, config.refresh).await;
@@ -215,6 +226,3 @@ async fn run_repo(
     Ok(())
 }
 
-fn eprint_step(msg: &str) {
-    eprint!("{msg}");
-}

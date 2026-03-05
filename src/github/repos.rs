@@ -57,7 +57,11 @@ struct GraphQLError {
     message: String,
 }
 
-pub async fn list_repos(client: &GitHubClient, org: &str) -> Result<Vec<RepoInfo>> {
+pub async fn list_repos(
+    client: &GitHubClient,
+    org: &str,
+    on_progress: impl Fn(usize),
+) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
     let mut cursor: Option<String> = None;
 
@@ -116,6 +120,8 @@ pub async fn list_repos(client: &GitHubClient, org: &str) -> Result<Vec<RepoInfo
                 pushed_at,
             });
         }
+
+        on_progress(repos.len());
 
         if !connection.page_info.has_next_page {
             break;
