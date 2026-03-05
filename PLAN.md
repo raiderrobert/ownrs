@@ -184,6 +184,16 @@ So I can build an archival shortlist
 | Stale repo cleanup | `ownrs org acme-corp --sort stale --status missing --detail` |
 | Pre-shipping check | `ownrs repo` |
 
+### Future use cases
+
+These are out of scope for v0 but worth considering for future iterations:
+
+- **Drift trending / diff over time** — compare the current audit against a prior run to show what changed since last check. Would require persisting results and adding a `--diff` or `--since` flag.
+- **Multi-org support** — some companies span multiple GitHub orgs. Supporting `ownrs org acme-corp,acme-platform` or a config file listing orgs would cover this.
+- **Team-level rollup** — "show me everything team-alpha owns across both sources." The `--team` filter currently finds legacy refs, but a positive "what does this team own?" view would be useful for team leads.
+- **Suggested fixes / auto-remediation** — for "codeowners-only" repos, generate a `catalog-info.yaml` from CODEOWNERS. For "catalog-only" repos, generate a CODEOWNERS entry. Could be a `--fix` flag or a separate `ownrs fix` subcommand.
+- **Nested CODEOWNERS / path-level reconciliation** — the plan extracts a "top-level team" but repos often have per-path ownership. Reconciling path-level owners against Backstage could surface deeper mismatches.
+
 ## Usage Lifecycle
 
 1. **Ad hoc discovery** — run once to see the state of the world, triage what needs fixing.
