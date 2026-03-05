@@ -45,14 +45,6 @@ impl FileCache {
         Ok(())
     }
 
-    pub fn invalidate(&self, key: &str) -> Result<()> {
-        let path = self.path_for(key);
-        if path.exists() {
-            std::fs::remove_file(&path)?;
-        }
-        Ok(())
-    }
-
     fn path_for(&self, key: &str) -> PathBuf {
         let safe_key = key.replace('/', "__");
         self.dir.join(format!("{safe_key}.json"))
