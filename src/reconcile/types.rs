@@ -89,7 +89,4 @@ impl AuditSummary {
         }
     }
 
-    pub fn has_problems(&self) -> bool {
-        self.mismatched > 0 || self.stale > 0 || self.missing > 0
-    }
 }
