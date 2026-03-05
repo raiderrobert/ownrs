@@ -5,15 +5,20 @@ use crate::reconcile::types::{AuditSummary, RepoOwnership};
 pub fn print_summary(summary: &AuditSummary) {
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
-    table.set_header(vec!["Status", "Count"]);
+    table.set_header(vec!["Status", "Count", "%"]);
 
-    table.add_row(vec!["Aligned", &summary.aligned.to_string()]);
-    table.add_row(vec!["Mismatched", &summary.mismatched.to_string()]);
-    table.add_row(vec!["Catalog Only", &summary.catalog_only.to_string()]);
-    table.add_row(vec!["Codeowners Only", &summary.codeowners_only.to_string()]);
-    table.add_row(vec!["Stale", &summary.stale.to_string()]);
-    table.add_row(vec!["Missing", &summary.missing.to_string()]);
-    table.add_row(vec!["Total", &summary.total.to_string()]);
+    let total = summary.total as f64;
+    let pct = |n: usize| {
+        if total == 0.0 { "0.0".to_string() } else { format!("{:.1}", n as f64 / total * 100.0) }
+    };
+
+    table.add_row(vec!["Aligned", &summary.aligned.to_string(), &pct(summary.aligned)]);
+    table.add_row(vec!["Mismatched", &summary.mismatched.to_string(), &pct(summary.mismatched)]);
+    table.add_row(vec!["Catalog Only", &summary.catalog_only.to_string(), &pct(summary.catalog_only)]);
+    table.add_row(vec!["Codeowners Only", &summary.codeowners_only.to_string(), &pct(summary.codeowners_only)]);
+    table.add_row(vec!["Stale", &summary.stale.to_string(), &pct(summary.stale)]);
+    table.add_row(vec!["Missing", &summary.missing.to_string(), &pct(summary.missing)]);
+    table.add_row(vec!["Total", &summary.total.to_string(), ""]);
 
     println!("{table}");
 }
