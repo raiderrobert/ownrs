@@ -32,9 +32,9 @@ pub enum Scope {
 
 impl Config {
     pub fn from_cli(cli: Cli) -> anyhow::Result<Self> {
-        let token = cli
-            .token
-            .ok_or_else(|| anyhow::anyhow!("GitHub token required. Set GITHUB_TOKEN or use --token"))?;
+        let token = cli.token.ok_or_else(|| {
+            anyhow::anyhow!("GitHub token required. Set GITHUB_TOKEN or use --token")
+        })?;
 
         let cache_dir = match cli.cache_dir {
             Some(dir) => PathBuf::from(dir),
@@ -61,7 +61,12 @@ impl Config {
                 detail,
                 strict,
             },
-            Command::Repo { repo, status, format, strict } => {
+            Command::Repo {
+                repo,
+                status,
+                format,
+                strict,
+            } => {
                 let (org, repo_name) = parse_repo_arg(repo)?;
                 Scope::Repo {
                     org,

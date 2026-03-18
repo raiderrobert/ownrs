@@ -35,18 +35,14 @@ pub fn reconcile(
 
     for (team, exists) in &codeowners_teams_exist {
         if !exists {
-            notes.push(format!(
-                "CODEOWNERS references non-existent team: {team}"
-            ));
+            notes.push(format!("CODEOWNERS references non-existent team: {team}"));
             any_stale = true;
         }
     }
 
     for team in admin_teams {
         if !valid_teams.contains(team.as_str()) {
-            notes.push(format!(
-                "Admin team does not exist: {team}"
-            ));
+            notes.push(format!("Admin team does not exist: {team}"));
             any_stale = true;
         }
     }
@@ -70,8 +66,7 @@ pub fn reconcile(
     let has_codeowners = !codeowners_teams.is_empty();
     let has_admin = !admin_teams.is_empty();
 
-    let source_count =
-        has_catalog as usize + has_codeowners as usize + has_admin as usize;
+    let source_count = has_catalog as usize + has_codeowners as usize + has_admin as usize;
 
     let alignment = match source_count {
         0 => {
@@ -92,20 +87,14 @@ pub fn reconcile(
         }
         _ => {
             // Build normalized HashSet per source
-            let catalog_set: HashSet<String> = catalog_owner
-                .iter()
-                .map(|t| normalize_team(t))
-                .collect();
+            let catalog_set: HashSet<String> =
+                catalog_owner.iter().map(|t| normalize_team(t)).collect();
 
-            let codeowners_set: HashSet<String> = codeowners_teams
-                .iter()
-                .map(|t| normalize_team(t))
-                .collect();
+            let codeowners_set: HashSet<String> =
+                codeowners_teams.iter().map(|t| normalize_team(t)).collect();
 
-            let admin_set: HashSet<String> = admin_teams
-                .iter()
-                .map(|t| normalize_team(t))
-                .collect();
+            let admin_set: HashSet<String> =
+                admin_teams.iter().map(|t| normalize_team(t)).collect();
 
             // Collect only the sets that are present
             let mut present_sets: Vec<&HashSet<String>> = Vec::new();
@@ -125,27 +114,20 @@ pub fn reconcile(
                 if present_sets.iter().all(|s| *s == first) {
                     AlignmentStatus::Aligned
                 } else {
-                    notes.push(
-                        "Sources have different team sets (strict mode)".to_string(),
-                    );
+                    notes.push("Sources have different team sets (strict mode)".to_string());
                     AlignmentStatus::Mismatched
                 }
             } else {
                 // Intersection mode: global intersection must be non-empty
                 let mut intersection = present_sets[0].clone();
                 for set in &present_sets[1..] {
-                    intersection = intersection
-                        .intersection(set)
-                        .cloned()
-                        .collect();
+                    intersection = intersection.intersection(set).cloned().collect();
                 }
 
                 if !intersection.is_empty() {
                     AlignmentStatus::Aligned
                 } else {
-                    notes.push(
-                        "No common team across all ownership sources".to_string(),
-                    );
+                    notes.push("No common team across all ownership sources".to_string());
                     AlignmentStatus::Mismatched
                 }
             }
@@ -183,49 +165,113 @@ mod tests {
 
     #[test]
     fn all_three_agree() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-a"]), &sv(&["team-a"]), &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-a"]),
+            &sv(&["team-a"]),
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Aligned);
     }
 
     #[test]
     fn two_of_three_overlap() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-a", "team-b"]), &sv(&["team-a", "team-c"]), &teams(&["team-a", "team-b", "team-c"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-a", "team-b"]),
+            &sv(&["team-a", "team-c"]),
+            &teams(&["team-a", "team-b", "team-c"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Aligned);
     }
 
     #[test]
     fn no_overlap_across_three() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-b"]), &sv(&["team-c"]), &teams(&["team-a", "team-b", "team-c"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-b"]),
+            &sv(&["team-c"]),
+            &teams(&["team-a", "team-b", "team-c"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Mismatched);
     }
 
     #[test]
     fn two_sources_catalog_codeowners_aligned() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-a"]), &[], &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-a"]),
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Aligned);
     }
 
     #[test]
     fn two_sources_catalog_codeowners_mismatched() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-b"]), &[], &teams(&["team-a", "team-b"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-b"]),
+            &[],
+            &teams(&["team-a", "team-b"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Mismatched);
     }
 
     #[test]
     fn catalog_only() {
-        let result = reconcile("repo", None, Some("team-a"), &[], &[], &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &[],
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::CatalogOnly);
     }
 
     #[test]
     fn codeowners_only() {
-        let result = reconcile("repo", None, None, &sv(&["team-a"]), &[], &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            None,
+            &sv(&["team-a"]),
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::CodeownersOnly);
     }
 
     #[test]
     fn admin_only() {
-        let result = reconcile("repo", None, None, &[], &sv(&["team-a"]), &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            None,
+            &[],
+            &sv(&["team-a"]),
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::AdminOnly);
     }
 
@@ -237,43 +283,99 @@ mod tests {
 
     #[test]
     fn stale_catalog_team_gone() {
-        let result = reconcile("repo", None, Some("team-gone"), &sv(&["team-a"]), &sv(&["team-a"]), &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-gone"),
+            &sv(&["team-a"]),
+            &sv(&["team-a"]),
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Stale);
     }
 
     #[test]
     fn stale_codeowners_team_gone() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-gone"]), &[], &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-gone"]),
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Stale);
     }
 
     #[test]
     fn stale_admin_team_gone() {
-        let result = reconcile("repo", None, None, &[], &sv(&["team-gone"]), &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            None,
+            &[],
+            &sv(&["team-gone"]),
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Stale);
     }
 
     #[test]
     fn case_insensitive_alignment() {
-        let result = reconcile("repo", None, Some("Team-A"), &sv(&["team-a"]), &[], &teams(&["team-a", "Team-A"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("Team-A"),
+            &sv(&["team-a"]),
+            &[],
+            &teams(&["team-a", "Team-A"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Aligned);
     }
 
     #[test]
     fn strict_all_identical() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-a"]), &sv(&["team-a"]), &teams(&["team-a"]), true);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-a"]),
+            &sv(&["team-a"]),
+            &teams(&["team-a"]),
+            true,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Aligned);
     }
 
     #[test]
     fn strict_superset_mismatched() {
-        let result = reconcile("repo", None, Some("team-a"), &sv(&["team-a", "team-b"]), &sv(&["team-a"]), &teams(&["team-a", "team-b"]), true);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &sv(&["team-a", "team-b"]),
+            &sv(&["team-a"]),
+            &teams(&["team-a", "team-b"]),
+            true,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Mismatched);
     }
 
     #[test]
     fn strict_single_source() {
-        let result = reconcile("repo", None, Some("team-a"), &[], &[], &teams(&["team-a"]), true);
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &[],
+            &[],
+            &teams(&["team-a"]),
+            true,
+        );
         assert_eq!(result.alignment, AlignmentStatus::CatalogOnly);
     }
 }

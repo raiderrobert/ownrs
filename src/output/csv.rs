@@ -25,7 +25,10 @@ pub fn print_csv(repos: &[RepoOwnership]) {
             repo.catalog_owner.as_deref().unwrap_or(""),
             &codeowners_teams_str,
             &admin_teams_str,
-            &repo.catalog_team_exists.map(|b| b.to_string()).unwrap_or_default(),
+            &repo
+                .catalog_team_exists
+                .map(|b| b.to_string())
+                .unwrap_or_default(),
             &repo.pushed_at.map(|d| d.to_rfc3339()).unwrap_or_default(),
             &repo.notes.join("; "),
         ])

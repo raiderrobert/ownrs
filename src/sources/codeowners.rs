@@ -90,6 +90,9 @@ mod tests {
 
     #[test]
     fn only_comments() {
-        assert_eq!(extract_teams("# just comments\n# nothing else\n"), Vec::<String>::new());
+        assert_eq!(
+            extract_teams("# just comments\n# nothing else\n"),
+            Vec::<String>::new()
+        );
     }
 }

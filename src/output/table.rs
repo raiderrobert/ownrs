@@ -9,16 +9,48 @@ pub fn print_summary(summary: &AuditSummary) {
 
     let total = summary.total as f64;
     let pct = |n: usize| {
-        if total == 0.0 { "0.0".to_string() } else { format!("{:.1}", n as f64 / total * 100.0) }
+        if total == 0.0 {
+            "0.0".to_string()
+        } else {
+            format!("{:.1}", n as f64 / total * 100.0)
+        }
     };
 
-    table.add_row(vec!["Aligned", &summary.aligned.to_string(), &pct(summary.aligned)]);
-    table.add_row(vec!["Mismatched", &summary.mismatched.to_string(), &pct(summary.mismatched)]);
-    table.add_row(vec!["Catalog Only", &summary.catalog_only.to_string(), &pct(summary.catalog_only)]);
-    table.add_row(vec!["Codeowners Only", &summary.codeowners_only.to_string(), &pct(summary.codeowners_only)]);
-    table.add_row(vec!["Admin Only", &summary.admin_only.to_string(), &pct(summary.admin_only)]);
-    table.add_row(vec!["Stale", &summary.stale.to_string(), &pct(summary.stale)]);
-    table.add_row(vec!["Missing", &summary.missing.to_string(), &pct(summary.missing)]);
+    table.add_row(vec![
+        "Aligned",
+        &summary.aligned.to_string(),
+        &pct(summary.aligned),
+    ]);
+    table.add_row(vec![
+        "Mismatched",
+        &summary.mismatched.to_string(),
+        &pct(summary.mismatched),
+    ]);
+    table.add_row(vec![
+        "Catalog Only",
+        &summary.catalog_only.to_string(),
+        &pct(summary.catalog_only),
+    ]);
+    table.add_row(vec![
+        "Codeowners Only",
+        &summary.codeowners_only.to_string(),
+        &pct(summary.codeowners_only),
+    ]);
+    table.add_row(vec![
+        "Admin Only",
+        &summary.admin_only.to_string(),
+        &pct(summary.admin_only),
+    ]);
+    table.add_row(vec![
+        "Stale",
+        &summary.stale.to_string(),
+        &pct(summary.stale),
+    ]);
+    table.add_row(vec![
+        "Missing",
+        &summary.missing.to_string(),
+        &pct(summary.missing),
+    ]);
     table.add_row(vec!["Total", &summary.total.to_string(), ""]);
 
     println!("{table}");
@@ -86,7 +118,11 @@ pub fn print_single_repo(repo: &RepoOwnership) {
         println!("CODEOWNERS: (none)");
     } else {
         for (team, exists) in &repo.codeowners_teams_exist {
-            let status = if *exists { "(team exists)" } else { "(team NOT found)" };
+            let status = if *exists {
+                "(team exists)"
+            } else {
+                "(team NOT found)"
+            };
             println!("CODEOWNERS: {} {}", team, status);
         }
     }

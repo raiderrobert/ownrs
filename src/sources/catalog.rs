@@ -40,7 +40,8 @@ mod tests {
 
     #[test]
     fn no_group_prefix() {
-        let yaml = "apiVersion: backstage.io/v1alpha1\nkind: Component\nspec:\n  owner: platform-team\n";
+        let yaml =
+            "apiVersion: backstage.io/v1alpha1\nkind: Component\nspec:\n  owner: platform-team\n";
         assert_eq!(extract_owner(yaml), Some("platform-team".to_string()));
     }
 
