@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to build and release (e.g. v0.1.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Code sign binary
+        run: codesign -s - target/release/ownrs
+
+      - name: Create release archive
+        run: |
+          tar -czvf ownrs-aarch64-macos.tar.gz -C target/release ownrs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ownrs-aarch64-macos
+          path: ownrs-aarch64-macos.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ownrs-aarch64-macos
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: ownrs-aarch64-macos.tar.gz
