@@ -28,11 +28,6 @@ pub fn extract_teams(content: &str) -> Vec<String> {
     teams
 }
 
-/// Extract the first top-level team (backward compat wrapper).
-pub fn extract_team(content: &str) -> Option<String> {
-    extract_teams(content).into_iter().next()
-}
-
 fn parse_owner(owner: &str) -> Option<String> {
     let owner = owner.strip_prefix('@')?;
     if let Some((_org, team)) = owner.split_once('/') {
