@@ -124,9 +124,7 @@ pub async fn list_repos(
                 continue;
             }
 
-            let pushed_at = node
-                .pushed_at
-                .and_then(|s| s.parse::<DateTime<Utc>>().ok());
+            let pushed_at = node.pushed_at.and_then(|s| s.parse::<DateTime<Utc>>().ok());
 
             repos.push(RepoInfo {
                 name: node.name,

@@ -75,13 +75,34 @@ pub struct AuditSummary {
 impl AuditSummary {
     pub fn from_repos(repos: Vec<RepoOwnership>) -> Self {
         let total = repos.len();
-        let aligned = repos.iter().filter(|r| r.alignment == AlignmentStatus::Aligned).count();
-        let mismatched = repos.iter().filter(|r| r.alignment == AlignmentStatus::Mismatched).count();
-        let catalog_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::CatalogOnly).count();
-        let codeowners_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::CodeownersOnly).count();
-        let admin_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::AdminOnly).count();
-        let stale = repos.iter().filter(|r| r.alignment == AlignmentStatus::Stale).count();
-        let missing = repos.iter().filter(|r| r.alignment == AlignmentStatus::Missing).count();
+        let aligned = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::Aligned)
+            .count();
+        let mismatched = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::Mismatched)
+            .count();
+        let catalog_only = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::CatalogOnly)
+            .count();
+        let codeowners_only = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::CodeownersOnly)
+            .count();
+        let admin_only = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::AdminOnly)
+            .count();
+        let stale = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::Stale)
+            .count();
+        let missing = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::Missing)
+            .count();
 
         AuditSummary {
             total,
@@ -95,5 +116,4 @@ impl AuditSummary {
             repos,
         }
     }
-
 }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use tokio::sync::Semaphore;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use crate::cache::file_cache::FileCache;
 use crate::github::client::GitHubClient;
@@ -140,27 +140,25 @@ async fn fetch_file_content(
         .await;
 
     match result {
-        Ok(content) => {
-            content.items.first().and_then(|item| {
-                item.decoded_content()
-            })
-        }
+        Ok(content) => content
+            .items
+            .first()
+            .and_then(|item| item.decoded_content()),
         Err(_) => None,
     }
 }
 
-async fn fetch_admin_teams(
-    octocrab: &octocrab::Octocrab,
-    org: &str,
-    repo: &str,
-) -> Vec<String> {
+async fn fetch_admin_teams(octocrab: &octocrab::Octocrab, org: &str, repo: &str) -> Vec<String> {
     let mut slugs = Vec::new();
     let mut page: u32 = 1;
 
     loop {
         let route = format!("/repos/{org}/{repo}/teams");
         let result: Result<Vec<RepoTeam>, _> = octocrab
-            .get(&route, Some(&[("per_page", "100"), ("page", &page.to_string())]))
+            .get(
+                &route,
+                Some(&[("per_page", "100"), ("page", &page.to_string())]),
+            )
             .await;
 
         match result {

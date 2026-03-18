@@ -45,14 +45,41 @@ async fn run() -> anyhow::Result<()> {
             ref format,
             detail,
             strict,
-        } => run_org(&client, &cache, &config, org, limit, sort, team_filter, status_filter, format, detail, strict).await,
+        } => {
+            run_org(
+                &client,
+                &cache,
+                &config,
+                org,
+                limit,
+                sort,
+                team_filter,
+                status_filter,
+                format,
+                detail,
+                strict,
+            )
+            .await
+        }
         Scope::Repo {
             ref org,
             ref repo,
             ref status_filter,
             ref format,
             strict,
-        } => run_repo(&client, &cache, &config, org, repo, status_filter, format, strict).await,
+        } => {
+            run_repo(
+                &client,
+                &cache,
+                &config,
+                org,
+                repo,
+                status_filter,
+                format,
+                strict,
+            )
+            .await
+        }
     }
 }
 
@@ -71,7 +98,11 @@ async fn run_org(
 ) -> anyhow::Result<()> {
     // Fetch teams
     let sp = ProgressBar::new_spinner();
-    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner} {msg}")
+            .unwrap(),
+    );
     sp.set_message("Fetching teams...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
     let valid_teams = fetch_team_slugs(client, org, cache, config.refresh).await?;
@@ -79,12 +110,17 @@ async fn run_org(
 
     // Fetch repos
     let sp = ProgressBar::new_spinner();
-    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner} {msg}")
+            .unwrap(),
+    );
     sp.set_message("Fetching repos...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
     let mut repos = list_repos(client, org, cache, config.refresh, |count| {
         sp.set_message(format!("Fetching repos... {count} so far"));
-    }).await?;
+    })
+    .await?;
     sp.finish_with_message(format!("Fetched {} repos", repos.len()));
 
     // Sort
@@ -120,9 +156,13 @@ async fn run_org(
         let repo_info = repos.iter().find(|r| r.name == source.repo_name);
         let pushed_at = repo_info.and_then(|r| r.pushed_at);
 
-        let catalog_owner = source.catalog_info.as_deref()
+        let catalog_owner = source
+            .catalog_info
+            .as_deref()
             .and_then(sources::catalog::extract_owner);
-        let codeowners_teams = source.codeowners.as_deref()
+        let codeowners_teams = source
+            .codeowners
+            .as_deref()
             .map(sources::codeowners::extract_teams)
             .unwrap_or_default();
 
@@ -142,11 +182,17 @@ async fn run_org(
     // Apply team filter
     if !team_filter.is_empty() {
         ownership_results.retain(|r| {
-            let cat_match = r.catalog_owner.as_ref()
+            let cat_match = r
+                .catalog_owner
+                .as_ref()
                 .is_some_and(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
-            let co_match = r.codeowners_teams.iter()
+            let co_match = r
+                .codeowners_teams
+                .iter()
                 .any(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
-            let admin_match = r.admin_teams.iter()
+            let admin_match = r
+                .admin_teams
+                .iter()
                 .any(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
             cat_match || co_match || admin_match
         });
@@ -190,7 +236,11 @@ async fn run_repo(
     strict: bool,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
-    sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
+    sp.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner} {msg}")
+            .unwrap(),
+    );
     sp.set_message("Fetching teams...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
     let valid_teams = fetch_team_slugs(client, org, cache, config.refresh).await?;
@@ -199,12 +249,18 @@ async fn run_repo(
     let repo_names = vec![repo.to_string()];
     let sources = fetch_all(client, org, &repo_names, cache, config.refresh).await;
 
-    let source = sources.into_iter().next()
+    let source = sources
+        .into_iter()
+        .next()
         .ok_or_else(|| anyhow::anyhow!("Failed to fetch repo sources"))?;
 
-    let catalog_owner = source.catalog_info.as_deref()
+    let catalog_owner = source
+        .catalog_info
+        .as_deref()
         .and_then(sources::catalog::extract_owner);
-    let codeowners_teams = source.codeowners.as_deref()
+    let codeowners_teams = source
+        .codeowners
+        .as_deref()
         .map(sources::codeowners::extract_teams)
         .unwrap_or_default();
 
@@ -237,4 +293,3 @@ async fn run_repo(
 
     Ok(())
 }
-
