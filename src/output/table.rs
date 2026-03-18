@@ -16,6 +16,7 @@ pub fn print_summary(summary: &AuditSummary) {
     table.add_row(vec!["Mismatched", &summary.mismatched.to_string(), &pct(summary.mismatched)]);
     table.add_row(vec!["Catalog Only", &summary.catalog_only.to_string(), &pct(summary.catalog_only)]);
     table.add_row(vec!["Codeowners Only", &summary.codeowners_only.to_string(), &pct(summary.codeowners_only)]);
+    table.add_row(vec!["Admin Only", &summary.admin_only.to_string(), &pct(summary.admin_only)]);
     table.add_row(vec!["Stale", &summary.stale.to_string(), &pct(summary.stale)]);
     table.add_row(vec!["Missing", &summary.missing.to_string(), &pct(summary.missing)]);
     table.add_row(vec!["Total", &summary.total.to_string(), ""]);
@@ -30,7 +31,8 @@ pub fn print_detail(repos: &[RepoOwnership]) {
         "Repo",
         "Status",
         "Catalog Owner",
-        "CODEOWNERS Team",
+        "CODEOWNERS Teams",
+        "Admin Teams",
         "Last Push",
         "Notes",
     ]);
@@ -41,11 +43,24 @@ pub fn print_detail(repos: &[RepoOwnership]) {
             .map(|d| d.format("%Y-%m-%d").to_string())
             .unwrap_or_else(|| "-".to_string());
 
+        let codeowners_str = if repo.codeowners_teams.is_empty() {
+            "-".to_string()
+        } else {
+            repo.codeowners_teams.join(", ")
+        };
+
+        let admin_str = if repo.admin_teams.is_empty() {
+            "-".to_string()
+        } else {
+            repo.admin_teams.join(", ")
+        };
+
         table.add_row(vec![
             &repo.repo_name,
             &repo.alignment.to_string(),
             repo.catalog_owner.as_deref().unwrap_or("-"),
-            repo.codeowners_team.as_deref().unwrap_or("-"),
+            &codeowners_str,
+            &admin_str,
             &pushed,
             &repo.notes.join("; "),
         ]);
@@ -66,15 +81,22 @@ pub fn print_single_repo(repo: &RepoOwnership) {
             None => "",
         }
     );
-    println!(
-        "CODEOWNERS: {}{}",
-        repo.codeowners_team.as_deref().unwrap_or("(none)"),
-        match repo.codeowners_team_exists {
-            Some(true) => " (team exists)",
-            Some(false) => " (team NOT found)",
-            None => "",
+
+    if repo.codeowners_teams.is_empty() {
+        println!("CODEOWNERS: (none)");
+    } else {
+        for (team, exists) in &repo.codeowners_teams_exist {
+            let status = if *exists { "(team exists)" } else { "(team NOT found)" };
+            println!("CODEOWNERS: {} {}", team, status);
         }
-    );
+    }
+
+    if repo.admin_teams.is_empty() {
+        println!("Admin:      (none)");
+    } else {
+        println!("Admin:      {}", repo.admin_teams.join(", "));
+    }
+
     if let Some(pushed) = repo.pushed_at {
         println!("Last Push:  {}", pushed.format("%Y-%m-%d %H:%M UTC"));
     }

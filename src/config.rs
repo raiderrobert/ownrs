@@ -19,12 +19,14 @@ pub enum Scope {
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
         detail: bool,
+        strict: bool,
     },
     Repo {
         org: String,
         repo: String,
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
+        strict: bool,
     },
 }
 
@@ -48,6 +50,7 @@ impl Config {
                 status,
                 format,
                 detail,
+                strict,
             } => Scope::Org {
                 org,
                 limit,
@@ -56,14 +59,16 @@ impl Config {
                 status_filter: status,
                 format,
                 detail,
+                strict,
             },
-            Command::Repo { repo, status, format } => {
+            Command::Repo { repo, status, format, strict } => {
                 let (org, repo_name) = parse_repo_arg(repo)?;
                 Scope::Repo {
                     org,
                     repo: repo_name,
                     status_filter: status,
                     format,
+                    strict,
                 }
             }
         };

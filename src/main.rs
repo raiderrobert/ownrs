@@ -44,13 +44,15 @@ async fn run() -> anyhow::Result<()> {
             ref status_filter,
             ref format,
             detail,
-        } => run_org(&client, &cache, &config, org, limit, sort, team_filter, status_filter, format, detail).await,
+            strict,
+        } => run_org(&client, &cache, &config, org, limit, sort, team_filter, status_filter, format, detail, strict).await,
         Scope::Repo {
             ref org,
             ref repo,
             ref status_filter,
             ref format,
-        } => run_repo(&client, &cache, &config, org, repo, status_filter, format).await,
+            strict,
+        } => run_repo(&client, &cache, &config, org, repo, status_filter, format, strict).await,
     }
 }
 
@@ -65,6 +67,7 @@ async fn run_org(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
     detail: bool,
+    strict: bool,
 ) -> anyhow::Result<()> {
     // Fetch teams
     let sp = ProgressBar::new_spinner();
@@ -119,15 +122,18 @@ async fn run_org(
 
         let catalog_owner = source.catalog_info.as_deref()
             .and_then(sources::catalog::extract_owner);
-        let codeowners_team = source.codeowners.as_deref()
-            .and_then(sources::codeowners::extract_team);
+        let codeowners_teams = source.codeowners.as_deref()
+            .map(sources::codeowners::extract_teams)
+            .unwrap_or_default();
 
         let result = reconcile(
             &source.repo_name,
             pushed_at,
             catalog_owner.as_deref(),
-            codeowners_team.as_deref(),
+            &codeowners_teams,
+            &source.admin_teams,
             &valid_teams,
+            strict,
         );
 
         ownership_results.push(result);
@@ -138,9 +144,11 @@ async fn run_org(
         ownership_results.retain(|r| {
             let cat_match = r.catalog_owner.as_ref()
                 .is_some_and(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
-            let co_match = r.codeowners_team.as_ref()
-                .is_some_and(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
-            cat_match || co_match
+            let co_match = r.codeowners_teams.iter()
+                .any(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
+            let admin_match = r.admin_teams.iter()
+                .any(|o| team_filter.iter().any(|t| o.eq_ignore_ascii_case(t)));
+            cat_match || co_match || admin_match
         });
     }
 
@@ -179,6 +187,7 @@ async fn run_repo(
     repo: &str,
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
+    strict: bool,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
     sp.set_style(ProgressStyle::default_spinner().template("{spinner} {msg}").unwrap());
@@ -195,15 +204,18 @@ async fn run_repo(
 
     let catalog_owner = source.catalog_info.as_deref()
         .and_then(sources::catalog::extract_owner);
-    let codeowners_team = source.codeowners.as_deref()
-        .and_then(sources::codeowners::extract_team);
+    let codeowners_teams = source.codeowners.as_deref()
+        .map(sources::codeowners::extract_teams)
+        .unwrap_or_default();
 
     let result = reconcile(
         &source.repo_name,
         None,
         catalog_owner.as_deref(),
-        codeowners_team.as_deref(),
+        &codeowners_teams,
+        &source.admin_teams,
         &valid_teams,
+        strict,
     );
 
     if !status_filter.is_empty() && !result.alignment.matches_filter(status_filter) {
