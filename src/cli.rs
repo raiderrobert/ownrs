@@ -85,6 +85,7 @@ pub enum StatusFilter {
     Missing,
     CatalogOnly,
     CodeownersOnly,
+    AdminOnly,
 }
 
 #[derive(Clone, ValueEnum)]

@@ -10,6 +10,7 @@ pub enum AlignmentStatus {
     Mismatched,
     CatalogOnly,
     CodeownersOnly,
+    AdminOnly,
     Stale,
     Missing,
 }
@@ -24,6 +25,7 @@ impl AlignmentStatus {
             StatusFilter::Mismatched => *self == AlignmentStatus::Mismatched,
             StatusFilter::CatalogOnly => *self == AlignmentStatus::CatalogOnly,
             StatusFilter::CodeownersOnly => *self == AlignmentStatus::CodeownersOnly,
+            StatusFilter::AdminOnly => *self == AlignmentStatus::AdminOnly,
             StatusFilter::Stale => *self == AlignmentStatus::Stale,
             StatusFilter::Missing => *self == AlignmentStatus::Missing,
         })
@@ -37,6 +39,7 @@ impl std::fmt::Display for AlignmentStatus {
             AlignmentStatus::Mismatched => write!(f, "mismatched"),
             AlignmentStatus::CatalogOnly => write!(f, "catalog-only"),
             AlignmentStatus::CodeownersOnly => write!(f, "codeowners-only"),
+            AlignmentStatus::AdminOnly => write!(f, "admin-only"),
             AlignmentStatus::Stale => write!(f, "stale"),
             AlignmentStatus::Missing => write!(f, "missing"),
         }
@@ -48,9 +51,10 @@ pub struct RepoOwnership {
     pub repo_name: String,
     pub pushed_at: Option<DateTime<Utc>>,
     pub catalog_owner: Option<String>,
-    pub codeowners_team: Option<String>,
+    pub codeowners_teams: Vec<String>,
     pub catalog_team_exists: Option<bool>,
-    pub codeowners_team_exists: Option<bool>,
+    pub codeowners_teams_exist: Vec<(String, bool)>,
+    pub admin_teams: Vec<String>,
     pub alignment: AlignmentStatus,
     pub notes: Vec<String>,
 }
@@ -62,6 +66,7 @@ pub struct AuditSummary {
     pub mismatched: usize,
     pub catalog_only: usize,
     pub codeowners_only: usize,
+    pub admin_only: usize,
     pub stale: usize,
     pub missing: usize,
     pub repos: Vec<RepoOwnership>,
@@ -74,6 +79,7 @@ impl AuditSummary {
         let mismatched = repos.iter().filter(|r| r.alignment == AlignmentStatus::Mismatched).count();
         let catalog_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::CatalogOnly).count();
         let codeowners_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::CodeownersOnly).count();
+        let admin_only = repos.iter().filter(|r| r.alignment == AlignmentStatus::AdminOnly).count();
         let stale = repos.iter().filter(|r| r.alignment == AlignmentStatus::Stale).count();
         let missing = repos.iter().filter(|r| r.alignment == AlignmentStatus::Missing).count();
 
@@ -83,6 +89,7 @@ impl AuditSummary {
             mismatched,
             catalog_only,
             codeowners_only,
+            admin_only,
             stale,
             missing,
             repos,
