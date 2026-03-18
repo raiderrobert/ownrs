@@ -53,6 +53,10 @@ pub enum Command {
         /// Show per-repo breakdown
         #[arg(long)]
         detail: bool,
+
+        /// Require exact team set match across all sources (default: intersection)
+        #[arg(long)]
+        strict: bool,
     },
 
     /// Audit a single repo
@@ -67,6 +71,10 @@ pub enum Command {
         /// Output format: table (default), json
         #[arg(long, default_value = "table")]
         format: OutputFormat,
+
+        /// Require exact team set match across all sources (default: intersection)
+        #[arg(long)]
+        strict: bool,
     },
 }
 
