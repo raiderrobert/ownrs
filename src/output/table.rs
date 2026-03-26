@@ -162,10 +162,7 @@ pub fn print_single_repo(repo: &RepoOwnership) {
             }
         }
         if !suggestion.unresolved.is_empty() {
-            println!(
-                "\nUnresolved:        {}",
-                suggestion.unresolved.join(", ")
-            );
+            println!("\nUnresolved:        {}", suggestion.unresolved.join(", "));
         }
     }
 }

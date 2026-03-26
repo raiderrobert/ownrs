@@ -161,10 +161,8 @@ pub async fn fetch_pr_reviewers(
     // Fetch reviews for each PR
     for pr_number in pr_numbers {
         let route = format!("/repos/{org}/{repo}/pulls/{pr_number}/reviews");
-        let result: Result<Vec<Review>, _> = client
-            .octocrab
-            .get(&route, None::<&[(&str, &str)]>)
-            .await;
+        let result: Result<Vec<Review>, _> =
+            client.octocrab.get(&route, None::<&[(&str, &str)]>).await;
 
         if let Ok(reviews) = result {
             for review in reviews {
@@ -180,7 +178,9 @@ pub async fn fetch_pr_reviewers(
 }
 
 /// Build a reverse lookup: username -> list of team slugs.
-fn build_user_to_teams(team_members: &HashMap<String, Vec<String>>) -> HashMap<String, Vec<String>> {
+fn build_user_to_teams(
+    team_members: &HashMap<String, Vec<String>>,
+) -> HashMap<String, Vec<String>> {
     let mut user_to_teams: HashMap<String, Vec<String>> = HashMap::new();
     for (team, members) in team_members {
         for member in members {
@@ -280,7 +280,10 @@ mod tests {
 
     fn make_team_members() -> HashMap<String, Vec<String>> {
         let mut m = HashMap::new();
-        m.insert("team-platform".to_string(), vec!["alice".to_string(), "bob".to_string()]);
+        m.insert(
+            "team-platform".to_string(),
+            vec!["alice".to_string(), "bob".to_string()],
+        );
         m.insert("team-infra".to_string(), vec!["charlie".to_string()]);
         m
     }
