@@ -104,9 +104,7 @@ fn token_from_gh_cli() -> anyhow::Result<String> {
             }
             Ok(token)
         }
-        _ => anyhow::bail!(
-            "GitHub token required. Run `gh auth login` or set GITHUB_TOKEN"
-        ),
+        _ => anyhow::bail!("GitHub token required. Run `gh auth login` or set GITHUB_TOKEN"),
     }
 }
 
