@@ -22,6 +22,14 @@ pub struct Cli {
     #[arg(long, global = true, default_value_t = 90)]
     pub lookback_days: u64,
 
+    /// Max team size to consider for suggestions (filters out org-wide teams)
+    #[arg(long, global = true, default_value_t = 20)]
+    pub max_team_size: usize,
+
+    /// Teams to exclude from suggestions (comma-separated)
+    #[arg(long, global = true, value_delimiter = ',')]
+    pub exclude_team: Vec<String>,
+
     /// GitHub token (defaults to GITHUB_TOKEN env var)
     #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,

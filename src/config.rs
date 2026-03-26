@@ -9,6 +9,8 @@ pub struct Config {
     pub cache_dir: PathBuf,
     pub cache_ttl: u64,
     pub lookback_days: u64,
+    pub max_team_size: usize,
+    pub exclude_team: Vec<String>,
 }
 
 pub enum Scope {
@@ -90,6 +92,8 @@ impl Config {
             cache_dir,
             cache_ttl: cli.cache_ttl,
             lookback_days: cli.lookback_days,
+            max_team_size: cli.max_team_size,
+            exclude_team: cli.exclude_team,
         })
     }
 }

@@ -199,8 +199,20 @@ pub fn score_teams(
     commit_authors: &HashMap<String, usize>,
     pr_reviewers: &HashMap<String, usize>,
     lookback_days: u64,
+    max_team_size: usize,
+    exclude_teams: &[String],
 ) -> SuggestionResult {
-    let user_to_teams = build_user_to_teams(team_members);
+    // Filter out large teams and explicitly excluded teams before scoring
+    let filtered_members: HashMap<String, Vec<String>> = team_members
+        .iter()
+        .filter(|(slug, members)| {
+            members.len() <= max_team_size
+                && !exclude_teams.iter().any(|e| e.eq_ignore_ascii_case(slug))
+        })
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    let user_to_teams = build_user_to_teams(&filtered_members);
 
     // Collect all unique contributors
     let mut all_users: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -298,7 +310,7 @@ mod tests {
 
         let pr_reviewers = HashMap::new();
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert_eq!(result.suggestions.len(), 2);
         assert_eq!(result.suggestions[0].team, "team-platform");
@@ -319,7 +331,7 @@ mod tests {
 
         let pr_reviewers = HashMap::new();
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert_eq!(result.suggestions.len(), 1);
         assert_eq!(result.suggestions[0].team, "team-platform");
@@ -333,7 +345,7 @@ mod tests {
         let mut pr_reviewers = HashMap::new();
         pr_reviewers.insert("charlie".to_string(), 5);
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert_eq!(result.suggestions[0].team, "team-infra");
         assert_eq!(result.suggestions[0].reviews, 5);
@@ -351,7 +363,7 @@ mod tests {
 
         let pr_reviewers = HashMap::new();
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert_eq!(result.suggestions.len(), 2);
         for suggestion in &result.suggestions {
@@ -375,11 +387,59 @@ mod tests {
 
         let pr_reviewers = HashMap::new();
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert_eq!(result.suggestions.len(), 3);
         assert_eq!(result.suggestions[0].team, "team-a");
         assert_eq!(result.suggestions[2].team, "team-c");
+    }
+
+    #[test]
+    fn large_teams_filtered_by_max_size() {
+        let mut team_members = HashMap::new();
+        // Small team
+        team_members.insert("small-team".to_string(), vec!["alice".to_string()]);
+        // Large team (3 members, will be filtered at max_team_size=2)
+        team_members.insert(
+            "big-team".to_string(),
+            vec![
+                "alice".to_string(),
+                "bob".to_string(),
+                "charlie".to_string(),
+            ],
+        );
+
+        let mut commit_authors = HashMap::new();
+        commit_authors.insert("alice".to_string(), 5);
+
+        let pr_reviewers = HashMap::new();
+
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 2, &[]);
+
+        assert_eq!(result.suggestions.len(), 1);
+        assert_eq!(result.suggestions[0].team, "small-team");
+    }
+
+    #[test]
+    fn excluded_teams_filtered() {
+        let team_members = make_team_members();
+        let mut commit_authors = HashMap::new();
+        commit_authors.insert("alice".to_string(), 5);
+        commit_authors.insert("charlie".to_string(), 3);
+
+        let pr_reviewers = HashMap::new();
+
+        let result = score_teams(
+            &team_members,
+            &commit_authors,
+            &pr_reviewers,
+            90,
+            100,
+            &["team-platform".to_string()],
+        );
+
+        assert_eq!(result.suggestions.len(), 1);
+        assert_eq!(result.suggestions[0].team, "team-infra");
     }
 
     #[test]
@@ -388,7 +448,7 @@ mod tests {
         let commit_authors = HashMap::new();
         let pr_reviewers = HashMap::new();
 
-        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90);
+        let result = score_teams(&team_members, &commit_authors, &pr_reviewers, 90, 100, &[]);
 
         assert!(result.suggestions.is_empty());
         assert!(result.unresolved.is_empty());

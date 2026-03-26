@@ -306,7 +306,14 @@ async fn run_repo(
         let pr_reviewers =
             fetch_pr_reviewers(client, org, repo, &since, cache, config.refresh).await?;
 
-        let suggestion = score_teams(&team_members, &commit_authors, &pr_reviewers, lookback_days);
+        let suggestion = score_teams(
+            &team_members,
+            &commit_authors,
+            &pr_reviewers,
+            lookback_days,
+            config.max_team_size,
+            &config.exclude_team,
+        );
         sp.finish_and_clear();
 
         result.suggested_owners = Some(suggestion);
