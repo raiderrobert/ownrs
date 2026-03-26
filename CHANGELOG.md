@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.2](https://github.com/raiderrobert/ownrs/compare/v0.1.1...v0.1.2) (2026-03-26)
+
+
+### Features
+
+* auto-detect GitHub token from gh CLI ([5371268](https://github.com/raiderrobert/ownrs/commit/53712688922a3355a6a9763c781d3ecc013e5a49))
+* auto-detect GitHub token from gh CLI and hide token in help ([a304ba6](https://github.com/raiderrobert/ownrs/commit/a304ba6ad130587cb65c7d294c87b31b8ff62a0e))
+
+
+### Bug Fixes
+
+* format bail! to satisfy rustfmt ([a05ba31](https://github.com/raiderrobert/ownrs/commit/a05ba315c4f1062cd752a04691974e6e4218e4d4))
+* format remaining bail! call for rustfmt ([0886cda](https://github.com/raiderrobert/ownrs/commit/0886cda471d44c810008a402b6ec6cc5ee72a6ab))
+
 ## [0.1.1](https://github.com/raiderrobert/ownrs/compare/v0.1.0...v0.1.1) (2026-03-18)
 
 
