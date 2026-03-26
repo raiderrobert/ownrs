@@ -19,7 +19,7 @@ pub struct Cli {
     pub cache_ttl: u64,
 
     /// GitHub token (defaults to GITHUB_TOKEN env var)
-    #[arg(long, global = true, env = "GITHUB_TOKEN")]
+    #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
 }
 

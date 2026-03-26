@@ -16,10 +16,10 @@ Or with cargo:
 cargo install --path .
 ```
 
-Requires a GitHub token with `read:org` and `repo` scopes:
+Requires a GitHub token with `read:org` and `repo` scopes. If you have the [GitHub CLI](https://cli.github.com) installed and authenticated, ownrs picks up your token automatically. Otherwise:
 
 ```bash
-export GITHUB_TOKEN=$(gh auth token)
+export GITHUB_TOKEN=<your-token>
 ```
 
 ## Quick Start
