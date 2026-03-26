@@ -8,6 +8,7 @@ pub struct Config {
     pub refresh: bool,
     pub cache_dir: PathBuf,
     pub cache_ttl: u64,
+    pub lookback_days: u64,
 }
 
 pub enum Scope {
@@ -27,6 +28,7 @@ pub enum Scope {
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
         strict: bool,
+        suggest: bool,
     },
 }
 
@@ -67,6 +69,7 @@ impl Config {
                 status,
                 format,
                 strict,
+                suggest,
             } => {
                 let (org, repo_name) = parse_repo_arg(repo)?;
                 Scope::Repo {
@@ -75,6 +78,7 @@ impl Config {
                     status_filter: status,
                     format,
                     strict,
+                    suggest,
                 }
             }
         };
@@ -85,6 +89,7 @@ impl Config {
             refresh: cli.refresh,
             cache_dir,
             cache_ttl: cli.cache_ttl,
+            lookback_days: cli.lookback_days,
         })
     }
 }

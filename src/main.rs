@@ -68,6 +68,7 @@ async fn run() -> anyhow::Result<()> {
             ref status_filter,
             ref format,
             strict,
+            suggest,
         } => {
             run_repo(
                 &client,
@@ -78,6 +79,8 @@ async fn run() -> anyhow::Result<()> {
                 status_filter,
                 format,
                 strict,
+                suggest,
+                config.lookback_days,
             )
             .await
         }
@@ -235,6 +238,8 @@ async fn run_repo(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
     strict: bool,
+    _suggest: bool,
+    _lookback_days: u64,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
     sp.set_style(

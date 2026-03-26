@@ -18,6 +18,10 @@ pub struct Cli {
     #[arg(long, global = true, default_value_t = 86400)]
     pub cache_ttl: u64,
 
+    /// Lookback window in days for ownership suggestions
+    #[arg(long, global = true, default_value_t = 90)]
+    pub lookback_days: u64,
+
     /// GitHub token (defaults to GITHUB_TOKEN env var)
     #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
@@ -75,6 +79,10 @@ pub enum Command {
         /// Require exact team set match across all sources (default: intersection)
         #[arg(long)]
         strict: bool,
+
+        /// Run ownership suggestion heuristic
+        #[arg(long)]
+        suggest: bool,
     },
 }
 
