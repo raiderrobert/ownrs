@@ -98,9 +98,7 @@ fn token_from_gh_cli() -> anyhow::Result<String> {
         Ok(out) if out.status.success() => {
             let token = String::from_utf8(out.stdout)?.trim().to_string();
             if token.is_empty() {
-                anyhow::bail!(
-                    "GitHub token required. Run `gh auth login` or set GITHUB_TOKEN"
-                );
+                anyhow::bail!("GitHub token required. Run `gh auth login` or set GITHUB_TOKEN");
             }
             Ok(token)
         }
