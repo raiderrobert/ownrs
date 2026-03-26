@@ -19,15 +19,30 @@ pub struct Cli {
     pub cache_ttl: u64,
 
     /// Lookback window in days for ownership suggestions
-    #[arg(long, global = true, default_value_t = 90)]
+    #[arg(
+        long,
+        global = true,
+        default_value_t = 90,
+        help_heading = "Suggestion Options"
+    )]
     pub lookback_days: u64,
 
     /// Max team size to consider for suggestions (filters out org-wide teams)
-    #[arg(long, global = true, default_value_t = 20)]
+    #[arg(
+        long,
+        global = true,
+        default_value_t = 20,
+        help_heading = "Suggestion Options"
+    )]
     pub max_team_size: usize,
 
     /// Teams to exclude from suggestions (comma-separated)
-    #[arg(long, global = true, value_delimiter = ',')]
+    #[arg(
+        long,
+        global = true,
+        value_delimiter = ',',
+        help_heading = "Suggestion Options"
+    )]
     pub exclude_team: Vec<String>,
 
     /// GitHub token (defaults to GITHUB_TOKEN env var)
@@ -89,7 +104,7 @@ pub enum Command {
         strict: bool,
 
         /// Run ownership suggestion heuristic
-        #[arg(long)]
+        #[arg(long, help_heading = "Suggestion Options")]
         suggest: bool,
     },
 }
