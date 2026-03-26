@@ -30,7 +30,7 @@ pub enum Scope {
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
         strict: bool,
-        suggest: Option<SuggestMode>,
+        suggest: Vec<SuggestMode>,
     },
 }
 

@@ -43,6 +43,9 @@ ownrs repo my-org/forgotten-service
 
 # Force suggestions for a repo with partial ownership
 ownrs repo my-org/my-repo --suggest partial
+
+# Combine modes
+ownrs repo my-org/my-repo --suggest missing,stale,partial
 ```
 
 ## What It Checks

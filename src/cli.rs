@@ -103,9 +103,9 @@ pub enum Command {
         #[arg(long)]
         strict: bool,
 
-        /// Run ownership suggestion heuristic [missing, stale, mismatched, partial]
-        #[arg(long, help_heading = "Suggestion Options")]
-        suggest: Option<SuggestMode>,
+        /// Run ownership suggestion heuristic (comma-separated: missing, stale, mismatched, partial)
+        #[arg(long, value_delimiter = ',', help_heading = "Suggestion Options")]
+        suggest: Vec<SuggestMode>,
     },
 }
 
