@@ -32,9 +32,10 @@ pub enum Scope {
 
 impl Config {
     pub fn from_cli(cli: Cli) -> anyhow::Result<Self> {
-        let token = cli.token.ok_or_else(|| {
-            anyhow::anyhow!("GitHub token required. Set GITHUB_TOKEN or use --token")
-        })?;
+        let token = match cli.token {
+            Some(t) => t,
+            None => token_from_gh_cli()?,
+        };
 
         let cache_dir = match cli.cache_dir {
             Some(dir) => PathBuf::from(dir),
@@ -85,6 +86,23 @@ impl Config {
             cache_dir,
             cache_ttl: cli.cache_ttl,
         })
+    }
+}
+
+fn token_from_gh_cli() -> anyhow::Result<String> {
+    let output = std::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let token = String::from_utf8(out.stdout)?.trim().to_string();
+            if token.is_empty() {
+                anyhow::bail!("GitHub token required. Run `gh auth login` or set GITHUB_TOKEN");
+            }
+            Ok(token)
+        }
+        _ => anyhow::bail!("GitHub token required. Run `gh auth login` or set GITHUB_TOKEN"),
     }
 }
 

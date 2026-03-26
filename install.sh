@@ -51,17 +51,28 @@ main() {
     echo ""
 
     if ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
-        echo "Add it to your PATH:"
+        echo "Add to your PATH (add this to your shell profile):"
         echo ""
         echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
         echo ""
     fi
 
-    echo "Set your GitHub token:"
+    if command -v gh > /dev/null 2>&1 && gh auth status > /dev/null 2>&1; then
+        echo "GitHub auth: detected via gh CLI — you're all set!"
+    elif command -v gh > /dev/null 2>&1; then
+        echo "GitHub auth: gh CLI found but not logged in. Run:"
+        echo ""
+        echo "  gh auth login"
+    else
+        echo "GitHub auth: set a token with read:org and repo scopes:"
+        echo ""
+        echo "  export GITHUB_TOKEN=<your-token>"
+        echo ""
+        echo "Or install the GitHub CLI (https://cli.github.com) and run: gh auth login"
+    fi
+
     echo ""
-    echo "  export GITHUB_TOKEN=\$(gh auth token)"
-    echo ""
-    echo "Then try:"
+    echo "Try it out:"
     echo ""
     echo "  ownrs org my-org --detail"
     echo ""
