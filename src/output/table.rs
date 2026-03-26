@@ -139,4 +139,33 @@ pub fn print_single_repo(repo: &RepoOwnership) {
     if !repo.notes.is_empty() {
         println!("Notes:      {}", repo.notes.join("; "));
     }
+
+    if let Some(ref suggestion) = repo.suggested_owners {
+        if suggestion.suggestions.is_empty() {
+            println!(
+                "\nSuggested:  No activity found in last {} days",
+                suggestion.lookback_days
+            );
+        } else {
+            println!(
+                "\nSuggested owners (based on last {} days of activity):",
+                suggestion.lookback_days
+            );
+            for s in &suggestion.suggestions {
+                let commits_label = if s.commits == 1 { "commit" } else { "commits" };
+                let reviews_label = if s.reviews == 1 { "review" } else { "reviews" };
+                let members_str = s.members.join(", ");
+                println!(
+                    "  {:<16} {} {}, {} {} ({})",
+                    s.team, s.commits, commits_label, s.reviews, reviews_label, members_str
+                );
+            }
+        }
+        if !suggestion.unresolved.is_empty() {
+            println!(
+                "\nUnresolved:        {}",
+                suggestion.unresolved.join(", ")
+            );
+        }
+    }
 }
