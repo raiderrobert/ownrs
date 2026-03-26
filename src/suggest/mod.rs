@@ -84,7 +84,10 @@ pub async fn fetch_commit_authors(
                 }
                 page += 1;
             }
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("Warning: failed to fetch commits for {org}/{repo}: {e}");
+                break;
+            }
         }
     }
 
@@ -115,6 +118,7 @@ pub async fn fetch_pr_reviewers(
     let mut page: u32 = 1;
     let mut pr_numbers: Vec<u64> = Vec::new();
 
+    let mut done = false;
     loop {
         let route = format!("/repos/{org}/{repo}/pulls");
         let result: Result<Vec<PullRequest>, _> = client
@@ -138,16 +142,19 @@ pub async fn fetch_pr_reviewers(
                     if pr.updated_at >= *since {
                         pr_numbers.push(pr.number);
                     } else {
-                        // PRs are sorted by updated desc, so we can stop
+                        done = true;
                         break;
                     }
                 }
-                if count < 100 {
+                if done || count < 100 {
                     break;
                 }
                 page += 1;
             }
-            Err(_) => break,
+            Err(e) => {
+                eprintln!("Warning: failed to fetch PRs for {org}/{repo}: {e}");
+                break;
+            }
         }
     }
 

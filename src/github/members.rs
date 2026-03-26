@@ -21,7 +21,16 @@ pub async fn fetch_team_members(
     cache: &FileCache,
     refresh: bool,
 ) -> Result<HashMap<String, Vec<String>>> {
-    let cache_key = format!("team_members_{org}");
+    let mut sorted_slugs: Vec<&String> = team_slugs.iter().collect();
+    sorted_slugs.sort();
+    let slugs_hash = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        sorted_slugs.hash(&mut hasher);
+        hasher.finish()
+    };
+    let cache_key = format!("team_members_{org}_{slugs_hash:x}");
 
     if !refresh {
         if let Some(cached) = cache.get::<HashMap<String, Vec<String>>>(&cache_key)? {
