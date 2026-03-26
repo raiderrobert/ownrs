@@ -37,6 +37,12 @@ ownrs org my-org --status stale,mismatched --format csv
 # Check a single repo
 ownrs repo my-org/my-repo
 ownrs repo  # auto-detects from git remote
+
+# Who might own this orphaned repo? (auto-runs for missing/stale)
+ownrs repo my-org/forgotten-service
+
+# Force suggestions for a repo with partial ownership
+ownrs repo my-org/my-repo --suggest partial
 ```
 
 ## What It Checks
@@ -61,6 +67,31 @@ By default, if there's any team that appears across all present sources, the rep
 | `stale` | A referenced team no longer exists in the org |
 | `missing` | No ownership signal at all |
 
+## Ownership Suggestions
+
+When a repo has no ownership metadata (`missing`) or references a team that no longer exists (`stale`), ownrs automatically suggests likely owners based on recent commit and PR review activity.
+
+It works by resolving contributors to their org teams and ranking teams by total activity:
+
+```
+Repository: forgotten-service
+Status:     missing
+Suggested owners (based on last 90 days of activity):
+  platform-team    12 commits, 4 reviews (alice, bob)
+  infra-team       3 commits, 1 review (charlie)
+```
+
+Use `--suggest` to override which statuses trigger suggestions:
+
+| Mode | Triggers for |
+|------|-------------|
+| (default) | `missing` and `stale` |
+| `--suggest missing` | `missing` only |
+| `--suggest stale` | `stale` only |
+| `--suggest partial` | `mismatched`, `catalog-only`, `codeowners-only`, `admin-only` |
+
+Org-wide teams are filtered out by default (teams with >20 members). Tune with `--max-team-size` or `--exclude-team`.
+
 ## Options
 
 ```
@@ -81,6 +112,12 @@ org subcommand:
 repo subcommand:
   --status <STATUS>    Filter by alignment status
   --format <FMT>       table (default), csv, json
+
+Suggestion Options:
+  --suggest <MODE>           Override suggestion trigger (missing, stale, partial)
+  --lookback-days <DAYS>     Activity lookback window (default: 90)
+  --max-team-size <N>        Filter out teams larger than N (default: 20)
+  --exclude-team <TEAM>      Teams to exclude from suggestions (comma-separated)
 ```
 
 ## Exit Codes
