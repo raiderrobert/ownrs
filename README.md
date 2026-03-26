@@ -88,7 +88,8 @@ Use `--suggest` to override which statuses trigger suggestions:
 | (default) | `missing` and `stale` |
 | `--suggest missing` | `missing` only |
 | `--suggest stale` | `stale` only |
-| `--suggest partial` | `mismatched`, `catalog-only`, `codeowners-only`, `admin-only` |
+| `--suggest mismatched` | `mismatched` (sources present, no team overlap) |
+| `--suggest partial` | `catalog-only`, `codeowners-only`, `admin-only` |
 
 Org-wide teams are filtered out by default (teams with >20 members). Tune with `--max-team-size` or `--exclude-team`.
 
@@ -114,7 +115,7 @@ repo subcommand:
   --format <FMT>       table (default), csv, json
 
 Suggestion Options:
-  --suggest <MODE>           Override suggestion trigger (missing, stale, partial)
+  --suggest <MODE>           Override suggestion trigger (missing, stale, mismatched, partial)
   --lookback-days <DAYS>     Activity lookback window (default: 90)
   --max-team-size <N>        Filter out teams larger than N (default: 20)
   --exclude-team <TEAM>      Teams to exclude from suggestions (comma-separated)

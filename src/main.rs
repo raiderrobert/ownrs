@@ -286,10 +286,10 @@ async fn run_repo(
     let should_suggest = match &suggest {
         Some(SuggestMode::Missing) => result.alignment == AlignmentStatus::Missing,
         Some(SuggestMode::Stale) => result.alignment == AlignmentStatus::Stale,
+        Some(SuggestMode::Mismatched) => result.alignment == AlignmentStatus::Mismatched,
         Some(SuggestMode::Partial) => matches!(
             result.alignment,
-            AlignmentStatus::Mismatched
-                | AlignmentStatus::CatalogOnly
+            AlignmentStatus::CatalogOnly
                 | AlignmentStatus::CodeownersOnly
                 | AlignmentStatus::AdminOnly
         ),

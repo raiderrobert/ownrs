@@ -103,7 +103,7 @@ pub enum Command {
         #[arg(long)]
         strict: bool,
 
-        /// Run ownership suggestion heuristic [missing, stale, partial]
+        /// Run ownership suggestion heuristic [missing, stale, mismatched, partial]
         #[arg(long, help_heading = "Suggestion Options")]
         suggest: Option<SuggestMode>,
     },
@@ -131,6 +131,7 @@ pub enum StatusFilter {
 pub enum SuggestMode {
     Missing,
     Stale,
+    Mismatched,
     Partial,
 }
 
