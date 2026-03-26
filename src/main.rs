@@ -82,7 +82,7 @@ async fn run() -> anyhow::Result<()> {
                 status_filter,
                 format,
                 strict,
-                suggest.as_ref(),
+                suggest,
                 config.lookback_days,
             )
             .await
@@ -241,7 +241,7 @@ async fn run_repo(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
     strict: bool,
-    suggest: Option<&SuggestMode>,
+    suggest: &[SuggestMode],
     lookback_days: u64,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
@@ -283,20 +283,21 @@ async fn run_repo(
         strict,
     );
 
-    let should_suggest = match &suggest {
-        Some(SuggestMode::Missing) => result.alignment == AlignmentStatus::Missing,
-        Some(SuggestMode::Stale) => result.alignment == AlignmentStatus::Stale,
-        Some(SuggestMode::Partial) => matches!(
-            result.alignment,
-            AlignmentStatus::Mismatched
-                | AlignmentStatus::CatalogOnly
-                | AlignmentStatus::CodeownersOnly
-                | AlignmentStatus::AdminOnly
-        ),
-        None => {
-            result.alignment == AlignmentStatus::Missing
-                || result.alignment == AlignmentStatus::Stale
-        }
+    let should_suggest = if suggest.is_empty() {
+        // Default: auto-trigger for missing and stale
+        result.alignment == AlignmentStatus::Missing || result.alignment == AlignmentStatus::Stale
+    } else {
+        suggest.iter().any(|mode| match mode {
+            SuggestMode::Missing => result.alignment == AlignmentStatus::Missing,
+            SuggestMode::Stale => result.alignment == AlignmentStatus::Stale,
+            SuggestMode::Mismatched => result.alignment == AlignmentStatus::Mismatched,
+            SuggestMode::Partial => matches!(
+                result.alignment,
+                AlignmentStatus::CatalogOnly
+                    | AlignmentStatus::CodeownersOnly
+                    | AlignmentStatus::AdminOnly
+            ),
+        })
     };
 
     if should_suggest {
