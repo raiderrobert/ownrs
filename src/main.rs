@@ -5,6 +5,7 @@ mod github;
 mod output;
 mod reconcile;
 mod sources;
+mod suggest;
 
 use std::process;
 
