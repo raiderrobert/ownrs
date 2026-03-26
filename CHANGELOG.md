@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/raiderrobert/ownrs/compare/v0.1.3...v0.1.4) (2026-03-26)
+
+
+### Features
+
+* refine --suggest modes and add README docs ([#18](https://github.com/raiderrobert/ownrs/issues/18)) ([080b4dd](https://github.com/raiderrobert/ownrs/commit/080b4ddddbecf24391103e8f57ebfbc386c1b918))
+
 ## [0.1.3](https://github.com/raiderrobert/ownrs/compare/v0.1.2...v0.1.3) (2026-03-26)
 
 
