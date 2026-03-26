@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.3](https://github.com/raiderrobert/ownrs/compare/v0.1.2...v0.1.3) (2026-03-26)
+
+
+### Features
+
+* add --max-team-size and --exclude-team filters for suggestions ([873f53d](https://github.com/raiderrobert/ownrs/commit/873f53d8e316ad12aedf9a97a24511f8e4b5137a))
+* add --suggest and --lookback-days CLI flags ([6284ced](https://github.com/raiderrobert/ownrs/commit/6284cedc7d5d5929415bc9de1d4d57111d2b2588))
+* add --version flag to CLI ([1d2095e](https://github.com/raiderrobert/ownrs/commit/1d2095e8af4f33b679e9d5cf76e129b52862370f))
+* add --version flag to CLI ([f17b11e](https://github.com/raiderrobert/ownrs/commit/f17b11e8a35584ea8d697e3d3318f86aa854829a))
+* add commit and PR review activity fetching ([2490092](https://github.com/raiderrobert/ownrs/commit/2490092dfa483f5f08e3a2dcbe364ea27302fd29))
+* add suggested owners to CSV output ([99f68dd](https://github.com/raiderrobert/ownrs/commit/99f68ddf33ed710f81cb23d72deff1ae216830cf))
+* add suggestion types for ownership heuristic ([0aa391e](https://github.com/raiderrobert/ownrs/commit/0aa391e2767482905b473f3f5558f394bf087738))
+* add team membership fetching with caching ([54ad63f](https://github.com/raiderrobert/ownrs/commit/54ad63f905104b13f96499100e75ea8599fa2c5a))
+* add team scoring engine for ownership suggestions ([98e53c4](https://github.com/raiderrobert/ownrs/commit/98e53c497c0773754d40eaee323f6f23a60b3c6e))
+* display suggested owners in single-repo table output ([90cfd61](https://github.com/raiderrobert/ownrs/commit/90cfd61d12eac15bb30bdb74657434dbd992e6a4))
+* make --suggest accept mode (missing, stale, partial) with auto-trigger default ([6a61c94](https://github.com/raiderrobert/ownrs/commit/6a61c947d58eace463ee722376644780966ffb31))
+* suggest likely owners for orphaned repos ([82efed6](https://github.com/raiderrobert/ownrs/commit/82efed6e6df1d46389aafce8409ef58a3d73e73e))
+* wire ownership heuristic into run_repo ([e8636a5](https://github.com/raiderrobert/ownrs/commit/e8636a567d00e6a694f10149131530d5d0ca42f9))
+
+
+### Bug Fixes
+
+* format code for rustfmt ([4cf426b](https://github.com/raiderrobert/ownrs/commit/4cf426b13c9b7a21130af872b7a773b365b93f33))
+* format code for rustfmt ([9f0067c](https://github.com/raiderrobert/ownrs/commit/9f0067cd3b98d2ace4a97bda4a4ae06e9a6469e6))
+* group suggestion flags under help heading ([8021f64](https://github.com/raiderrobert/ownrs/commit/8021f64c803ceea1981f5e8ef320bc56d8ba7c9e))
+* improve error reporting, cache keys, and PR pagination ([3e4ddab](https://github.com/raiderrobert/ownrs/commit/3e4ddab74b96aceb9efd7972c74735563ed1dd45))
+* simplify team members cache key ([eed68ba](https://github.com/raiderrobert/ownrs/commit/eed68baf8aaea105fe513164add2c9d971c7765d))
+
 ## [0.1.2](https://github.com/raiderrobert/ownrs/compare/v0.1.1...v0.1.2) (2026-03-26)
 
 
