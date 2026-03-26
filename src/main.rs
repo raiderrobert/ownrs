@@ -14,7 +14,7 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use cache::file_cache::FileCache;
-use cli::{OutputFormat, SortOrder};
+use cli::{OutputFormat, SortOrder, SuggestMode};
 use config::{Config, Scope};
 use github::client::GitHubClient;
 use github::members::fetch_team_members;
@@ -71,7 +71,7 @@ async fn run() -> anyhow::Result<()> {
             ref status_filter,
             ref format,
             strict,
-            suggest,
+            ref suggest,
         } => {
             run_repo(
                 &client,
@@ -82,7 +82,7 @@ async fn run() -> anyhow::Result<()> {
                 status_filter,
                 format,
                 strict,
-                suggest,
+                suggest.as_ref(),
                 config.lookback_days,
             )
             .await
@@ -241,7 +241,7 @@ async fn run_repo(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
     strict: bool,
-    suggest: bool,
+    suggest: Option<&SuggestMode>,
     lookback_days: u64,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
@@ -283,7 +283,21 @@ async fn run_repo(
         strict,
     );
 
-    let should_suggest = suggest || result.alignment == AlignmentStatus::Missing;
+    let should_suggest = match &suggest {
+        Some(SuggestMode::Missing) => result.alignment == AlignmentStatus::Missing,
+        Some(SuggestMode::Stale) => result.alignment == AlignmentStatus::Stale,
+        Some(SuggestMode::Partial) => matches!(
+            result.alignment,
+            AlignmentStatus::Mismatched
+                | AlignmentStatus::CatalogOnly
+                | AlignmentStatus::CodeownersOnly
+                | AlignmentStatus::AdminOnly
+        ),
+        None => {
+            result.alignment == AlignmentStatus::Missing
+                || result.alignment == AlignmentStatus::Stale
+        }
+    };
 
     if should_suggest {
         let sp = ProgressBar::new_spinner();

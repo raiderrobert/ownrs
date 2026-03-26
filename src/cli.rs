@@ -103,9 +103,9 @@ pub enum Command {
         #[arg(long)]
         strict: bool,
 
-        /// Run ownership suggestion heuristic
+        /// Run ownership suggestion heuristic [missing, stale, partial]
         #[arg(long, help_heading = "Suggestion Options")]
-        suggest: bool,
+        suggest: Option<SuggestMode>,
     },
 }
 
@@ -125,6 +125,13 @@ pub enum StatusFilter {
     CatalogOnly,
     CodeownersOnly,
     AdminOnly,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum SuggestMode {
+    Missing,
+    Stale,
+    Partial,
 }
 
 #[derive(Clone, ValueEnum)]

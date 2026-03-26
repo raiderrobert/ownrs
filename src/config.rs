@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, OutputFormat, SortOrder, StatusFilter};
+use crate::cli::{Cli, Command, OutputFormat, SortOrder, StatusFilter, SuggestMode};
 
 pub struct Config {
     pub scope: Scope,
@@ -30,7 +30,7 @@ pub enum Scope {
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
         strict: bool,
-        suggest: bool,
+        suggest: Option<SuggestMode>,
     },
 }
 
