@@ -22,6 +22,33 @@ pub struct Cli {
     #[arg(long, global = true, default_value_t = 86400)]
     pub cache_ttl: u64,
 
+    /// Lookback window in days for ownership suggestions
+    #[arg(
+        long,
+        global = true,
+        default_value_t = 90,
+        help_heading = "Suggestion Options"
+    )]
+    pub lookback_days: u64,
+
+    /// Max team size to consider for suggestions (filters out org-wide teams)
+    #[arg(
+        long,
+        global = true,
+        default_value_t = 20,
+        help_heading = "Suggestion Options"
+    )]
+    pub max_team_size: usize,
+
+    /// Teams to exclude from suggestions (comma-separated)
+    #[arg(
+        long,
+        global = true,
+        value_delimiter = ',',
+        help_heading = "Suggestion Options"
+    )]
+    pub exclude_team: Vec<String>,
+
     /// GitHub token (defaults to GITHUB_TOKEN env var)
     #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
@@ -79,6 +106,10 @@ pub enum Command {
         /// Require exact team set match across all sources (default: intersection)
         #[arg(long)]
         strict: bool,
+
+        /// Run ownership suggestion heuristic [missing, stale, partial]
+        #[arg(long, help_heading = "Suggestion Options")]
+        suggest: Option<SuggestMode>,
     },
 }
 
@@ -98,6 +129,13 @@ pub enum StatusFilter {
     CatalogOnly,
     CodeownersOnly,
     AdminOnly,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum SuggestMode {
+    Missing,
+    Stale,
+    Partial,
 }
 
 #[derive(Clone, ValueEnum)]

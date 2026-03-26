@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, OutputFormat, SortOrder, StatusFilter};
+use crate::cli::{Cli, Command, OutputFormat, SortOrder, StatusFilter, SuggestMode};
 
 pub struct Config {
     pub scope: Scope,
@@ -8,6 +8,9 @@ pub struct Config {
     pub refresh: bool,
     pub cache_dir: PathBuf,
     pub cache_ttl: u64,
+    pub lookback_days: u64,
+    pub max_team_size: usize,
+    pub exclude_team: Vec<String>,
 }
 
 pub enum Scope {
@@ -27,6 +30,7 @@ pub enum Scope {
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
         strict: bool,
+        suggest: Option<SuggestMode>,
     },
 }
 
@@ -67,6 +71,7 @@ impl Config {
                 status,
                 format,
                 strict,
+                suggest,
             } => {
                 let (org, repo_name) = parse_repo_arg(repo)?;
                 Scope::Repo {
@@ -75,6 +80,7 @@ impl Config {
                     status_filter: status,
                     format,
                     strict,
+                    suggest,
                 }
             }
         };
@@ -85,6 +91,9 @@ impl Config {
             refresh: cli.refresh,
             cache_dir,
             cache_ttl: cli.cache_ttl,
+            lookback_days: cli.lookback_days,
+            max_team_size: cli.max_team_size,
+            exclude_team: cli.exclude_team,
         })
     }
 }

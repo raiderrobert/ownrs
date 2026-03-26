@@ -12,12 +12,25 @@ pub fn print_csv(repos: &[RepoOwnership]) {
         "catalog_team_exists",
         "pushed_at",
         "notes",
+        "suggested_owners",
     ])
     .ok();
 
     for repo in repos {
         let codeowners_teams_str = repo.codeowners_teams.join(", ");
         let admin_teams_str = repo.admin_teams.join(", ");
+
+        let suggested_str = repo
+            .suggested_owners
+            .as_ref()
+            .map(|s| {
+                s.suggestions
+                    .iter()
+                    .map(|t| t.team.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            })
+            .unwrap_or_default();
 
         wtr.write_record([
             &repo.repo_name,
@@ -31,6 +44,7 @@ pub fn print_csv(repos: &[RepoOwnership]) {
                 .unwrap_or_default(),
             &repo.pushed_at.map(|d| d.to_rfc3339()).unwrap_or_default(),
             &repo.notes.join("; "),
+            &suggested_str,
         ])
         .ok();
     }
