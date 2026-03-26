@@ -1,6 +1,6 @@
 [package]
 name = "ownrs"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Three-way ownership reconciliation across GitHub CODEOWNERS, Backstage catalog-info.yaml, and GitHub Teams"
 license = "LicenseRef-PolyForm-Shield-1.0.0"
