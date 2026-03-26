@@ -57,6 +57,8 @@ pub struct RepoOwnership {
     pub admin_teams: Vec<String>,
     pub alignment: AlignmentStatus,
     pub notes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_owners: Option<crate::suggest::types::SuggestionResult>,
 }
 
 #[derive(Debug, Clone, Serialize)]

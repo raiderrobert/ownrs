@@ -58,6 +58,7 @@ pub fn reconcile(
             admin_teams: admin_teams.to_vec(),
             alignment: AlignmentStatus::Stale,
             notes,
+            suggested_owners: None,
         };
     }
 
@@ -144,6 +145,7 @@ pub fn reconcile(
         admin_teams: admin_teams.to_vec(),
         alignment,
         notes,
+        suggested_owners: None,
     }
 }
 

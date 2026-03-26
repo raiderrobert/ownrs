@@ -9,6 +9,7 @@ mod suggest;
 
 use std::process;
 
+use chrono::Utc;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -16,11 +17,13 @@ use cache::file_cache::FileCache;
 use cli::{OutputFormat, SortOrder};
 use config::{Config, Scope};
 use github::client::GitHubClient;
+use github::members::fetch_team_members;
 use github::repos::list_repos;
 use github::teams::fetch_team_slugs;
 use reconcile::alignment::reconcile;
-use reconcile::types::AuditSummary;
+use reconcile::types::{AlignmentStatus, AuditSummary};
 use sources::fetcher::fetch_all;
+use suggest::{fetch_commit_authors, fetch_pr_reviewers, score_teams};
 
 #[tokio::main]
 async fn main() {
@@ -238,8 +241,8 @@ async fn run_repo(
     status_filter: &[cli::StatusFilter],
     format: &OutputFormat,
     strict: bool,
-    _suggest: bool,
-    _lookback_days: u64,
+    suggest: bool,
+    lookback_days: u64,
 ) -> anyhow::Result<()> {
     let sp = ProgressBar::new_spinner();
     sp.set_style(
@@ -270,7 +273,7 @@ async fn run_repo(
         .map(sources::codeowners::extract_teams)
         .unwrap_or_default();
 
-    let result = reconcile(
+    let mut result = reconcile(
         &source.repo_name,
         None,
         catalog_owner.as_deref(),
@@ -279,6 +282,35 @@ async fn run_repo(
         &valid_teams,
         strict,
     );
+
+    let should_suggest = suggest || result.alignment == AlignmentStatus::Missing;
+
+    if should_suggest {
+        let sp = ProgressBar::new_spinner();
+        sp.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner} {msg}")
+                .unwrap(),
+        );
+        sp.set_message("Analyzing activity...");
+        sp.enable_steady_tick(std::time::Duration::from_millis(100));
+
+        let since = Utc::now() - chrono::Duration::days(lookback_days as i64);
+
+        let team_slugs: Vec<String> = valid_teams.iter().cloned().collect();
+        let team_members =
+            fetch_team_members(client, org, &team_slugs, cache, config.refresh).await?;
+
+        let commit_authors =
+            fetch_commit_authors(client, org, repo, &since, cache, config.refresh).await?;
+        let pr_reviewers =
+            fetch_pr_reviewers(client, org, repo, &since, cache, config.refresh).await?;
+
+        let suggestion = score_teams(&team_members, &commit_authors, &pr_reviewers, lookback_days);
+        sp.finish_and_clear();
+
+        result.suggested_owners = Some(suggestion);
+    }
 
     if !status_filter.is_empty() && !result.alignment.matches_filter(status_filter) {
         return Ok(());
