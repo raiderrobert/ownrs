@@ -49,6 +49,14 @@ pub struct Cli {
     )]
     pub exclude_team: Vec<String>,
 
+    /// Repo types to exclude (comma-separated: archived, forks, empty, template, mirror)
+    #[arg(long, global = true, value_delimiter = ',', default_value = "archived")]
+    pub exclude: Vec<RepoExclude>,
+
+    /// Filter by visibility (comma-separated: public, private, internal)
+    #[arg(long, global = true, value_delimiter = ',')]
+    pub visibility: Vec<Visibility>,
+
     /// GitHub token (defaults to GITHUB_TOKEN env var)
     #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
@@ -111,6 +119,24 @@ pub enum Command {
         #[arg(long, value_delimiter = ',', help_heading = "Suggestion Options")]
         suggest: Vec<SuggestMode>,
     },
+}
+
+#[derive(Clone, PartialEq, Eq, ValueEnum)]
+pub enum RepoExclude {
+    Archived,
+    Forks,
+    Empty,
+    Template,
+    Mirror,
+    /// Include all repos (no exclusions)
+    None,
+}
+
+#[derive(Clone, PartialEq, Eq, ValueEnum)]
+pub enum Visibility {
+    Public,
+    Private,
+    Internal,
 }
 
 #[derive(Clone, ValueEnum)]

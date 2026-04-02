@@ -124,7 +124,7 @@ async fn run_org(
     );
     sp.set_message("Fetching repos...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
-    let mut repos = list_repos(client, org, cache, config.refresh, |count| {
+    let mut repos = list_repos(client, org, cache, config.refresh, &config.exclude_repos, &config.visibility, |count| {
         sp.set_message(format!("Fetching repos... {count} so far"));
     })
     .await?;
