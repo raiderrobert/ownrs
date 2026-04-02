@@ -1,3 +1,4 @@
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -174,12 +175,17 @@ async fn fetch_admin_teams(octocrab: &octocrab::Octocrab, org: &str, repo: &str)
                 page += 1;
             }
             Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("403") || err_str.contains("404") {
-                    break;
+                match &e {
+                    octocrab::Error::GitHub { source, .. }
+                        if source.status_code == StatusCode::FORBIDDEN
+                            || source.status_code == StatusCode::NOT_FOUND =>
+                    {
+                        // Repo not accessible with this token — expected, skip silently
+                    }
+                    _ => {
+                        eprintln!("Warning: failed to fetch teams for {org}/{repo}: {e}");
+                    }
                 }
-                // For other errors, log and return empty
-                eprintln!("Warning: failed to fetch teams for {org}/{repo}: {e}");
                 break;
             }
         }
