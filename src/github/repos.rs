@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::cache::file_cache::FileCache;
+use crate::cli::{RepoExclude, Visibility};
 
 use super::client::GitHubClient;
 
@@ -44,6 +45,13 @@ struct RepoNode {
     is_archived: bool,
     #[serde(rename = "isFork")]
     is_fork: bool,
+    #[serde(rename = "isEmpty")]
+    is_empty: bool,
+    #[serde(rename = "isTemplate")]
+    is_template: bool,
+    #[serde(rename = "isMirror")]
+    is_mirror: bool,
+    visibility: String,
 }
 
 #[derive(Deserialize)]
@@ -64,9 +72,42 @@ pub async fn list_repos(
     org: &str,
     cache: &FileCache,
     refresh: bool,
+    exclude: &[RepoExclude],
+    visibility: &[Visibility],
     on_progress: impl Fn(usize),
 ) -> Result<Vec<RepoInfo>> {
-    let cache_key = format!("repos_{org}");
+    let exclude = if exclude.contains(&RepoExclude::None) {
+        &[]
+    } else {
+        exclude
+    };
+    let mut exclude_tag = exclude
+        .iter()
+        .map(|e| match e {
+            RepoExclude::Archived => "archived",
+            RepoExclude::Forks => "forks",
+            RepoExclude::Empty => "empty",
+            RepoExclude::Template => "template",
+            RepoExclude::Mirror => "mirror",
+            RepoExclude::None => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+    exclude_tag.sort();
+    let mut vis_tag = visibility
+        .iter()
+        .map(|v| match v {
+            Visibility::Public => "public",
+            Visibility::Private => "private",
+            Visibility::Internal => "internal",
+        })
+        .collect::<Vec<_>>();
+    vis_tag.sort();
+    let vis_str = if vis_tag.is_empty() {
+        "all".to_string()
+    } else {
+        vis_tag.join("_")
+    };
+    let cache_key = format!("repos_{org}_ex_{}_vis_{vis_str}", exclude_tag.join("_"));
 
     if !refresh {
         if let Some(cached) = cache.get::<Vec<RepoInfo>>(&cache_key)? {
@@ -93,6 +134,10 @@ pub async fn list_repos(
                             pushedAt
                             isArchived
                             isFork
+                            isEmpty
+                            isTemplate
+                            isMirror
+                            visibility
                         }}
                         pageInfo {{
                             hasNextPage
@@ -120,8 +165,30 @@ pub async fn list_repos(
         let connection = data.organization.repositories;
 
         for node in connection.nodes {
-            if node.is_archived || node.is_fork {
+            if node.is_archived && exclude.contains(&RepoExclude::Archived) {
                 continue;
+            }
+            if node.is_fork && exclude.contains(&RepoExclude::Forks) {
+                continue;
+            }
+            if node.is_empty && exclude.contains(&RepoExclude::Empty) {
+                continue;
+            }
+            if node.is_template && exclude.contains(&RepoExclude::Template) {
+                continue;
+            }
+            if node.is_mirror && exclude.contains(&RepoExclude::Mirror) {
+                continue;
+            }
+            if !visibility.is_empty() {
+                let matches = visibility.iter().any(|v| match v {
+                    Visibility::Public => node.visibility == "PUBLIC",
+                    Visibility::Private => node.visibility == "PRIVATE",
+                    Visibility::Internal => node.visibility == "INTERNAL",
+                });
+                if !matches {
+                    continue;
+                }
             }
 
             let pushed_at = node.pushed_at.and_then(|s| s.parse::<DateTime<Utc>>().ok());
