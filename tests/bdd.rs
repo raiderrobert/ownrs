@@ -25,6 +25,9 @@ struct RepoRow {
 
 const ORG: &str = "testorg";
 
+/// Cache key for the default filters (`--exclude archived,forks`, all visibilities).
+const REPOS_KEY: &str = "repos_testorg_ex_archived-forks_vis_all";
+
 /// Feature-table value for a CODEOWNERS file that exists but has no usable rule.
 const INVALID_CODEOWNERS: &str = "!invalid";
 
@@ -141,7 +144,7 @@ fn write_fixtures(world: &mut OwnrsWorld) {
         .collect();
     write_cache_file(
         &cache_dir,
-        &format!("repos_{ORG}"),
+        REPOS_KEY,
         &serde_json::to_string(&repos_json).unwrap(),
     );
 

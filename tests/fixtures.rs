@@ -4,6 +4,9 @@ use tempfile::TempDir;
 
 pub const ORG: &str = "testorg";
 
+/// Cache key for the default filters (`--exclude archived,forks`, all visibilities).
+const REPOS_KEY: &str = "repos_testorg_ex_archived-forks_vis_all";
+
 #[derive(Debug, Clone)]
 pub struct RepoRow {
     pub repo_name: String,
@@ -103,7 +106,7 @@ pub fn write_fixtures(repos: &[RepoRow], valid_teams: Option<&[String]>) -> (Tem
         .collect();
     write_cache_file(
         &cache_dir,
-        &format!("repos_{ORG}"),
+        REPOS_KEY,
         &serde_json::to_string(&repos_json).unwrap(),
     );
 

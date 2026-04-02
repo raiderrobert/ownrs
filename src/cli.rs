@@ -49,6 +49,19 @@ pub struct Cli {
     )]
     pub exclude_team: Vec<String>,
 
+    /// Repo types to exclude (comma-separated: archived, forks, empty, template, mirror, none)
+    #[arg(
+        long,
+        global = true,
+        value_delimiter = ',',
+        default_value = "archived,forks"
+    )]
+    pub exclude: Vec<RepoExclude>,
+
+    /// Filter by visibility (comma-separated: public, private, internal)
+    #[arg(long, global = true, value_delimiter = ',')]
+    pub visibility: Vec<Visibility>,
+
     /// GitHub token (defaults to GITHUB_TOKEN env var)
     #[arg(long, global = true, env = "GITHUB_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
@@ -115,6 +128,48 @@ pub enum Command {
         #[arg(long, value_delimiter = ',', help_heading = "Suggestion Options")]
         suggest: Vec<SuggestMode>,
     },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RepoExclude {
+    Archived,
+    Forks,
+    Empty,
+    Template,
+    Mirror,
+    /// Include all repos (no exclusions)
+    None,
+}
+
+impl RepoExclude {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RepoExclude::Archived => "archived",
+            RepoExclude::Forks => "forks",
+            RepoExclude::Empty => "empty",
+            RepoExclude::Template => "template",
+            RepoExclude::Mirror => "mirror",
+            RepoExclude::None => "none",
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Visibility {
+    Public,
+    Private,
+    Internal,
+}
+
+impl Visibility {
+    /// Also the GraphQL `RepositoryVisibility` value, case-insensitively.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Visibility::Public => "public",
+            Visibility::Private => "private",
+            Visibility::Internal => "internal",
+        }
+    }
 }
 
 #[derive(Clone, ValueEnum, PartialEq, Eq)]

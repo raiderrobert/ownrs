@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, OutputFormat, StatusFilter, SuggestMode};
+use crate::cli::{Cli, Command, OutputFormat, RepoExclude, StatusFilter, SuggestMode, Visibility};
 
 pub struct Config {
     pub scope: Scope,
@@ -11,6 +11,8 @@ pub struct Config {
     pub lookback_days: u64,
     pub max_team_size: usize,
     pub exclude_team: Vec<String>,
+    pub exclude_repos: Vec<RepoExclude>,
+    pub visibility: Vec<Visibility>,
 }
 
 pub enum Scope {
@@ -97,6 +99,8 @@ impl Config {
             lookback_days: cli.lookback_days,
             max_team_size: cli.max_team_size,
             exclude_team: cli.exclude_team,
+            exclude_repos: cli.exclude,
+            visibility: cli.visibility,
         })
     }
 }
