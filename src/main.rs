@@ -85,6 +85,7 @@ async fn run() -> anyhow::Result<()> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_org(
     client: &GitHubClient,
     cache: &FileCache,
@@ -233,6 +234,7 @@ async fn run_org(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_repo(
     client: &GitHubClient,
     cache: &FileCache,
