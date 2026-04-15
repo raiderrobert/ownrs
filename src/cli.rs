@@ -65,7 +65,7 @@ pub enum Command {
         #[arg(long)]
         limit: Option<usize>,
 
-        /// Sort by column name(s), comma-separated (repo, status, catalog, codeowners, push, admin, notes)
+        /// Sort by column name(s), comma-separated (repo, status, catalog-owner, codeowners-teams, last-push, admin-teams, notes)
         #[arg(long, value_delimiter = ',', default_value = "repo")]
         sort: Vec<String>,
 

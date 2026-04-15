@@ -13,7 +13,7 @@ Feature: Sorting
     And the sort indicator should be on "STATUS"
 
   Scenario: Sort by last-push
-    When I render the table with "--sort push"
+    When I render the table with "--sort last-push"
     Then the first data row should start with "beta-tool"
 
   Scenario: Multi-column sort
@@ -23,4 +23,4 @@ Feature: Sorting
   Scenario: Sort indicator arrow on sorted column
     When I render the table with "--sort repo"
     Then stdout should contain "REPO"
-    And stdout should not contain "STATUS ↑"
+    And stdout should not contain "STATUS↑"

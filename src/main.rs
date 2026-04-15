@@ -212,6 +212,16 @@ async fn run_org(
             if summary {
                 println!("{}", output::table::render_summary(&audit));
             }
+            let valid_sort_cols = ["repo", "status", "catalog-owner", "codeowners-teams", "last-push", "admin-teams", "notes"];
+            for col in sort {
+                if !valid_sort_cols.contains(&col.as_str()) {
+                    anyhow::bail!(
+                        "Invalid sort column '{}'. Valid columns: {}",
+                        col,
+                        valid_sort_cols.join(", ")
+                    );
+                }
+            }
             let team_label = if team_filter.is_empty() {
                 None
             } else {

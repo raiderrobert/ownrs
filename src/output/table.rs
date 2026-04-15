@@ -40,10 +40,10 @@ impl Column {
         match self {
             Column::Repo => "repo",
             Column::Status => "status",
-            Column::CatalogOwner => "catalog",
-            Column::CodeownersTeams => "codeowners",
-            Column::LastPush => "push",
-            Column::AdminTeams => "admin",
+            Column::CatalogOwner => "catalog-owner",
+            Column::CodeownersTeams => "codeowners-teams",
+            Column::LastPush => "last-push",
+            Column::AdminTeams => "admin-teams",
             Column::Notes => "notes",
         }
     }
@@ -117,7 +117,7 @@ pub fn render_table(repos: &[RepoOwnership], opts: &TableOptions) -> String {
             let h = col.header().to_string();
             if let Some(ref ps) = primary_sort {
                 if col.sort_key() == ps.as_str() {
-                    return format!("{} \u{2191}", h); // ↑
+                    return format!("{}\u{2191}", h); // ↑
                 }
             }
             h
@@ -323,18 +323,18 @@ fn sort_repos(repos: &mut [RepoOwnership], sort_columns: &[String]) {
                     .to_lowercase()
                     .cmp(&b.repo_name.to_lowercase()),
                 "status" => a.alignment.to_string().cmp(&b.alignment.to_string()),
-                "catalog" => {
+                "catalog-owner" => {
                     let a_val = a.catalog_owner.as_deref().unwrap_or("");
                     let b_val = b.catalog_owner.as_deref().unwrap_or("");
                     a_val.to_lowercase().cmp(&b_val.to_lowercase())
                 }
-                "codeowners" => {
+                "codeowners-teams" => {
                     let a_val = a.codeowners_teams.join(", ");
                     let b_val = b.codeowners_teams.join(", ");
                     a_val.to_lowercase().cmp(&b_val.to_lowercase())
                 }
-                "push" => a.pushed_at.cmp(&b.pushed_at),
-                "admin" => {
+                "last-push" => a.pushed_at.cmp(&b.pushed_at),
+                "admin-teams" => {
                     let a_val = a.admin_teams.join(", ");
                     let b_val = b.admin_teams.join(", ");
                     a_val.to_lowercase().cmp(&b_val.to_lowercase())
