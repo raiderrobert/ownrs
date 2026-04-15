@@ -1,44 +1,46 @@
-use std::str::FromStr;
+use std::path::PathBuf;
 
-use chrono::{NaiveDate, TimeZone, Utc};
 use cucumber::{given, then, when, World};
-
-use ownrs::output::table::{render_names, render_summary, render_table, TableOptions};
-use ownrs::reconcile::types::{AlignmentStatus, AuditSummary, RepoOwnership};
+use tempfile::TempDir;
 
 #[derive(Debug, Default, World)]
 pub struct OwnrsWorld {
-    repos: Vec<RepoOwnership>,
-    team_filter: Option<String>,
+    _temp_dir: Option<TempDir>,
+    cache_dir: Option<PathBuf>,
+    valid_teams: Option<Vec<String>>,
+    repos: Vec<RepoRow>,
+    exit_code: Option<i32>,
     stdout: String,
+    stderr: String,
 }
+
+#[derive(Debug, Clone)]
+struct RepoRow {
+    repo_name: String,
+    catalog_owner: Option<String>,
+    codeowners_teams: Vec<String>,
+    admin_teams: Vec<String>,
+    pushed_at: String,
+}
+
+const ORG: &str = "testorg";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn parse_status(s: &str) -> AlignmentStatus {
-    match s.to_lowercase().as_str() {
-        "aligned" => AlignmentStatus::Aligned,
-        "mismatched" => AlignmentStatus::Mismatched,
-        "catalog-only" => AlignmentStatus::CatalogOnly,
-        "codeowners-only" => AlignmentStatus::CodeownersOnly,
-        "admin-only" => AlignmentStatus::AdminOnly,
-        "stale" => AlignmentStatus::Stale,
-        "missing" => AlignmentStatus::Missing,
-        other => panic!("unknown status: {other}"),
+fn ownrs_binary() -> PathBuf {
+    let mut path = std::env::current_exe().unwrap();
+    path.pop(); // remove binary name
+    if path.ends_with("deps") {
+        path.pop(); // remove deps/
     }
-}
-
-fn parse_date(s: &str) -> Option<chrono::DateTime<Utc>> {
-    if s.is_empty() || s == "-" {
-        return None;
-    }
-    let nd = NaiveDate::from_str(s).unwrap_or_else(|e| panic!("bad date '{s}': {e}"));
-    Some(Utc.from_utc_datetime(&nd.and_hms_opt(0, 0, 0).unwrap()))
+    path.push("ownrs");
+    path
 }
 
 fn parse_list(s: &str) -> Vec<String> {
+    let s = s.trim();
     if s.is_empty() || s == "-" {
         return Vec::new();
     }
@@ -46,6 +48,7 @@ fn parse_list(s: &str) -> Vec<String> {
 }
 
 fn parse_optional(s: &str) -> Option<String> {
+    let s = s.trim();
     if s.is_empty() || s == "-" {
         None
     } else {
@@ -53,149 +56,211 @@ fn parse_optional(s: &str) -> Option<String> {
     }
 }
 
+fn write_cache_file(cache_dir: &PathBuf, key: &str, json: &str) {
+    let safe_key = key.replace('/', "__");
+    let path = cache_dir.join(format!("{safe_key}.json"));
+    std::fs::write(&path, json).unwrap_or_else(|e| {
+        panic!("Failed to write cache file {}: {}", path.display(), e);
+    });
+}
+
+fn build_catalog_yaml(owner: &str) -> String {
+    format!(
+        "apiVersion: backstage.io/v1alpha1\nkind: Component\nspec:\n  owner: group:{}\n",
+        owner
+    )
+}
+
+fn build_codeowners_content(teams: &[String]) -> String {
+    let owners: Vec<String> = teams
+        .iter()
+        .map(|t| format!("@{}/{}", ORG, t))
+        .collect();
+    format!("* {}\n", owners.join(" "))
+}
+
+fn write_fixtures(world: &mut OwnrsWorld) {
+    let temp_dir = TempDir::new().expect("failed to create temp dir");
+    let cache_dir = temp_dir.path().to_path_buf();
+
+    // Determine valid teams
+    let valid_teams: Vec<String> = if let Some(ref explicit) = world.valid_teams {
+        explicit.clone()
+    } else {
+        // Auto-derive from all team names in repos
+        let mut teams = std::collections::HashSet::new();
+        for repo in &world.repos {
+            if let Some(ref owner) = repo.catalog_owner {
+                teams.insert(owner.clone());
+            }
+            for t in &repo.codeowners_teams {
+                teams.insert(t.clone());
+            }
+            for t in &repo.admin_teams {
+                teams.insert(t.clone());
+            }
+        }
+        teams.into_iter().collect()
+    };
+
+    // Write teams cache
+    let teams_json = serde_json::to_string(&valid_teams).unwrap();
+    write_cache_file(&cache_dir, &format!("teams_{ORG}"), &teams_json);
+
+    // Build repos list
+    let repos_json: Vec<serde_json::Value> = world
+        .repos
+        .iter()
+        .map(|r| {
+            let pushed = if r.pushed_at.is_empty() || r.pushed_at == "-" {
+                serde_json::Value::Null
+            } else {
+                // Accept YYYY-MM-DD and expand to full datetime
+                let dt = if r.pushed_at.len() == 10 {
+                    format!("{}T00:00:00Z", r.pushed_at)
+                } else {
+                    r.pushed_at.clone()
+                };
+                serde_json::Value::String(dt)
+            };
+            serde_json::json!({
+                "name": r.repo_name,
+                "pushed_at": pushed,
+            })
+        })
+        .collect();
+    write_cache_file(
+        &cache_dir,
+        &format!("repos_{ORG}"),
+        &serde_json::to_string(&repos_json).unwrap(),
+    );
+
+    // Per-repo cache files
+    for repo in &world.repos {
+        let name = &repo.repo_name;
+
+        // CODEOWNERS
+        let co_key = format!("content_{ORG}_{name}_codeowners");
+        let co_value: serde_json::Value = if repo.codeowners_teams.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::String(build_codeowners_content(&repo.codeowners_teams))
+        };
+        write_cache_file(&cache_dir, &co_key, &serde_json::to_string(&co_value).unwrap());
+
+        // catalog-info.yaml
+        let cat_key = format!("content_{ORG}_{name}_catalog");
+        let cat_value: serde_json::Value = match &repo.catalog_owner {
+            Some(owner) => serde_json::Value::String(build_catalog_yaml(owner)),
+            None => serde_json::Value::Null,
+        };
+        write_cache_file(&cache_dir, &cat_key, &serde_json::to_string(&cat_value).unwrap());
+
+        // admin teams
+        let admin_key = format!("admin_teams_{ORG}_{name}");
+        write_cache_file(
+            &cache_dir,
+            &admin_key,
+            &serde_json::to_string(&repo.admin_teams).unwrap(),
+        );
+    }
+
+    world._temp_dir = Some(temp_dir);
+    world.cache_dir = Some(cache_dir);
+}
+
 // ---------------------------------------------------------------------------
 // Given steps
 // ---------------------------------------------------------------------------
 
-#[given("the following repos:")]
+#[given(expr = "the valid teams are {string}")]
+fn given_valid_teams(world: &mut OwnrsWorld, teams_csv: String) {
+    world.valid_teams = Some(parse_list(&teams_csv));
+}
+
+#[given("a test org with the following repos:")]
 fn given_repos(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
     let table = step.table.as_ref().expect("expected a data table");
     let headers: Vec<&str> = table.rows[0].iter().map(|s| s.as_str()).collect();
-    let notes_idx = headers.iter().position(|h| *h == "notes");
+
+    let col = |name: &str| -> Option<usize> { headers.iter().position(|h| *h == name) };
+
+    let repo_name_idx = col("repo_name").expect("missing repo_name column");
+    let catalog_owner_idx = col("catalog_owner").expect("missing catalog_owner column");
+    let codeowners_teams_idx = col("codeowners_teams").expect("missing codeowners_teams column");
+    let admin_teams_idx = col("admin_teams").expect("missing admin_teams column");
+    let pushed_at_idx = col("pushed_at").expect("missing pushed_at column");
 
     for row in table.rows.iter().skip(1) {
-        // columns: repo_name | status | catalog_owner | codeowners_teams | admin_teams | pushed_at [| notes]
-        let repo_name = row[0].clone();
-        let alignment = parse_status(&row[1]);
-        let catalog_owner = parse_optional(&row[2]);
-        let codeowners_teams = parse_list(&row[3]);
-        let admin_teams = parse_list(&row[4]);
-        let pushed_at = parse_date(&row[5]);
-
-        let notes = if let Some(idx) = notes_idx {
-            let val = row[idx].trim();
-            if val.is_empty() || val == "-" {
-                Vec::new()
-            } else {
-                vec![val.to_string()]
-            }
-        } else {
-            Vec::new()
-        };
-
-        world.repos.push(RepoOwnership {
-            repo_name,
-            pushed_at,
-            catalog_owner,
-            codeowners_teams: codeowners_teams.clone(),
-            catalog_team_exists: None,
-            codeowners_teams_exist: codeowners_teams.iter().map(|t| (t.clone(), true)).collect(),
-            admin_teams,
-            alignment,
-            notes,
-            suggested_owners: None,
+        world.repos.push(RepoRow {
+            repo_name: row[repo_name_idx].trim().to_string(),
+            catalog_owner: parse_optional(&row[catalog_owner_idx]),
+            codeowners_teams: parse_list(&row[codeowners_teams_idx]),
+            admin_teams: parse_list(&row[admin_teams_idx]),
+            pushed_at: row[pushed_at_idx].trim().to_string(),
         });
     }
-}
 
-#[given(expr = "the team filter is {string}")]
-fn given_team_filter(world: &mut OwnrsWorld, team: String) {
-    world.team_filter = Some(team);
+    // Write fixtures immediately
+    write_fixtures(world);
 }
 
 // ---------------------------------------------------------------------------
 // When steps
 // ---------------------------------------------------------------------------
 
-#[when("I render the table")]
-fn render_default(world: &mut OwnrsWorld) {
-    let opts = TableOptions {
-        wide: false,
-        sort_columns: vec![],
-        team_filter: world.team_filter.clone(),
-    };
-    world.stdout = render_table(&world.repos, &opts);
-}
+#[when(expr = "I run ownrs {string}")]
+fn run_ownrs(world: &mut OwnrsWorld, args_str: String) {
+    let cache_dir = world
+        .cache_dir
+        .as_ref()
+        .expect("cache_dir not set — did you forget the Given step?");
 
-#[when(expr = "I render the table with {string}")]
-fn render_with_flags(world: &mut OwnrsWorld, flags: String) {
-    let mut wide = false;
-    let mut sort_columns: Vec<String> = vec![];
+    let binary = ownrs_binary();
+    let args: Vec<&str> = args_str.split_whitespace().collect();
 
-    let parts: Vec<&str> = flags.split_whitespace().collect();
-    let mut i = 0;
-    while i < parts.len() {
-        match parts[i] {
-            "--wide" => wide = true,
-            "--sort" => {
-                // next token is comma-separated sort columns
-                i += 1;
-                if i < parts.len() {
-                    for col in parts[i].split(',') {
-                        sort_columns.push(col.trim().to_string());
-                    }
-                }
-            }
-            f if f.starts_with("--sort=") => {
-                for col in f.trim_start_matches("--sort=").split(',') {
-                    sort_columns.push(col.trim().to_string());
-                }
-            }
-            other => panic!("unknown flag: {other}"),
-        }
-        i += 1;
-    }
+    let output = std::process::Command::new(&binary)
+        .args(&args)
+        .arg("--cache-dir")
+        .arg(cache_dir)
+        .env("GITHUB_TOKEN", "fake-token-for-testing")
+        .output()
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to execute {}: {}",
+                binary.display(),
+                e
+            );
+        });
 
-    let opts = TableOptions {
-        wide,
-        sort_columns,
-        team_filter: world.team_filter.clone(),
-    };
-    world.stdout = render_table(&world.repos, &opts);
-}
-
-#[when("I render the summary")]
-fn render_summary_step(world: &mut OwnrsWorld) {
-    let summary = AuditSummary::from_repos(world.repos.clone());
-    world.stdout = render_summary(&summary);
-}
-
-#[when(expr = "I render with format {string}")]
-fn render_with_format(world: &mut OwnrsWorld, format: String) {
-    match format.as_str() {
-        "names" => {
-            world.stdout = render_names(&world.repos);
-        }
-        _ => panic!("unknown format: {format}"),
-    }
-}
-
-#[when(expr = "I render with {string}")]
-fn render_with_flags_format(world: &mut OwnrsWorld, flags: String) {
-    let parts: Vec<&str> = flags.split_whitespace().collect();
-    let mut i = 0;
-    while i < parts.len() {
-        match parts[i] {
-            "--format" => {
-                i += 1;
-                if i < parts.len() {
-                    match parts[i] {
-                        "names" => {
-                            world.stdout = render_names(&world.repos);
-                        }
-                        other => panic!("unknown format: {other}"),
-                    }
-                }
-            }
-            other => panic!("unknown flag: {other}"),
-        }
-        i += 1;
-    }
+    world.exit_code = Some(output.status.code().unwrap_or(-1));
+    world.stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    world.stderr = String::from_utf8_lossy(&output.stderr).to_string();
 }
 
 // ---------------------------------------------------------------------------
 // Then steps
 // ---------------------------------------------------------------------------
+
+#[then("the command should succeed")]
+fn command_should_succeed(world: &mut OwnrsWorld) {
+    let code = world.exit_code.expect("no command was run");
+    assert_eq!(
+        code, 0,
+        "Expected exit code 0, got {}.\nstdout:\n{}\nstderr:\n{}",
+        code, world.stdout, world.stderr,
+    );
+}
+
+#[then("the command should fail")]
+fn command_should_fail(world: &mut OwnrsWorld) {
+    let code = world.exit_code.expect("no command was run");
+    assert_ne!(
+        code, 0,
+        "Expected non-zero exit code, got 0.\nstdout:\n{}\nstderr:\n{}",
+        world.stdout, world.stderr,
+    );
+}
 
 #[then(expr = "stdout should contain {string}")]
 fn stdout_contains(world: &mut OwnrsWorld, expected: String) {
@@ -212,6 +277,15 @@ fn stdout_not_contains(world: &mut OwnrsWorld, unexpected: String) {
         !world.stdout.contains(&unexpected),
         "Expected stdout NOT to contain '{unexpected}', but got:\n{}",
         world.stdout,
+    );
+}
+
+#[then(expr = "stderr should contain {string}")]
+fn stderr_contains(world: &mut OwnrsWorld, expected: String) {
+    assert!(
+        world.stderr.contains(&expected),
+        "Expected stderr to contain '{expected}', but got:\n{}",
+        world.stderr,
     );
 }
 
@@ -298,19 +372,6 @@ fn third_data_row(world: &mut OwnrsWorld, expected: String) {
     );
 }
 
-#[then(expr = "the sort indicator should be on {string}")]
-fn sort_indicator_on(world: &mut OwnrsWorld, column: String) {
-    let header_line = world
-        .stdout
-        .lines()
-        .find(|l| l.contains(&column))
-        .unwrap_or_else(|| panic!("Column '{column}' not found in stdout:\n{}", world.stdout));
-    assert!(
-        header_line.contains('\u{2191}'), // ↑
-        "Expected sort indicator (↑) on column '{column}', but header line is: '{header_line}'",
-    );
-}
-
 #[then("stdout should be:")]
 fn stdout_should_be(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
     let expected = step.docstring.as_ref().expect("expected docstring").trim();
@@ -319,32 +380,6 @@ fn stdout_should_be(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
         actual, expected,
         "stdout mismatch\ngot:\n{actual}\nexpected:\n{expected}"
     );
-}
-
-#[then(expr = "stdout should equal:")]
-fn stdout_equals(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
-    let expected = step.docstring.as_ref().expect("expected a docstring");
-    assert_eq!(
-        world.stdout.trim(),
-        expected.trim(),
-        "stdout did not match expected:\n--- got ---\n{}\n--- expected ---\n{}",
-        world.stdout.trim(),
-        expected.trim(),
-    );
-}
-
-#[then(expr = "no line should exceed {int} characters")]
-fn no_line_exceeds_width(world: &mut OwnrsWorld, max_width: usize) {
-    for (i, line) in world.stdout.lines().enumerate() {
-        assert!(
-            line.len() <= max_width,
-            "Line {} exceeds {} characters (len={}): '{}'",
-            i + 1,
-            max_width,
-            line.len(),
-            line,
-        );
-    }
 }
 
 // ---------------------------------------------------------------------------
