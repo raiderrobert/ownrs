@@ -1,7 +1,12 @@
 Feature: Default table output
 
   Background:
-    Given the fixtures from "default_table"
+    Given the valid teams are "my-team"
+    And a test org with the following repos:
+      | repo_name    | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
+      | beta-service | old-team      | old-team         |             | 2026-04-10 |
+      | alpha-repo   | my-team       | my-team          | my-team     | 2026-04-14 |
+      | gamma-tool   | -             | -                |             | 2026-03-01 |
 
   Scenario: Default output shows detail table sorted by repo name
     When I run ownrs "org testorg"

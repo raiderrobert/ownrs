@@ -1,1 +1,0 @@
-"apiVersion: backstage.io/v1alpha1\nkind: Component\nspec:\n  owner: group:team-a\n"
