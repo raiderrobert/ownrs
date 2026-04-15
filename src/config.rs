@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, OutputFormat, SortOrder, StatusFilter, SuggestMode};
+use crate::cli::{Cli, Command, OutputFormat, StatusFilter, SuggestMode};
 
 pub struct Config {
     pub scope: Scope,
@@ -17,11 +17,12 @@ pub enum Scope {
     Org {
         org: String,
         limit: Option<usize>,
-        sort: SortOrder,
+        sort: Vec<String>,
         team_filter: Vec<String>,
         status_filter: Vec<StatusFilter>,
         format: OutputFormat,
-        detail: bool,
+        summary: bool,
+        wide: bool,
         strict: bool,
     },
     Repo {
@@ -54,7 +55,8 @@ impl Config {
                 team,
                 status,
                 format,
-                detail,
+                summary,
+                wide,
                 strict,
             } => Scope::Org {
                 org,
@@ -63,7 +65,8 @@ impl Config {
                 team_filter: team,
                 status_filter: status,
                 format,
-                detail,
+                summary,
+                wide,
                 strict,
             },
             Command::Repo {

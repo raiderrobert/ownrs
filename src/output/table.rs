@@ -455,16 +455,3 @@ fn row_values(repo: &RepoOwnership, columns: &[Column]) -> Vec<String> {
         .collect()
 }
 
-// Keep backward-compat wrappers for main.rs usage
-pub fn print_summary(summary: &AuditSummary) {
-    println!("{}", render_summary(summary));
-}
-
-pub fn print_detail(repos: &[RepoOwnership]) {
-    let opts = TableOptions {
-        wide: true,
-        sort_columns: vec![],
-        team_filter: None,
-    };
-    print!("{}", render_table(repos, &opts));
-}

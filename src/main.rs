@@ -5,7 +5,7 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use ownrs::cache::file_cache::FileCache;
-use ownrs::cli::{self, OutputFormat, SortOrder, StatusFilter, SuggestMode};
+use ownrs::cli::{self, OutputFormat, StatusFilter, SuggestMode};
 use ownrs::config::{Config, Scope};
 use ownrs::github::client::GitHubClient;
 use ownrs::github::members::fetch_team_members;
@@ -40,7 +40,8 @@ async fn run() -> anyhow::Result<()> {
             ref team_filter,
             ref status_filter,
             ref format,
-            detail,
+            summary,
+            wide,
             strict,
         } => {
             run_org(
@@ -53,7 +54,8 @@ async fn run() -> anyhow::Result<()> {
                 team_filter,
                 status_filter,
                 format,
-                detail,
+                summary,
+                wide,
                 strict,
             )
             .await
@@ -89,11 +91,12 @@ async fn run_org(
     config: &Config,
     org: &str,
     limit: Option<usize>,
-    sort: &SortOrder,
+    sort: &[String],
     team_filter: &[String],
     status_filter: &[StatusFilter],
     format: &OutputFormat,
-    detail: bool,
+    summary: bool,
+    wide: bool,
     strict: bool,
 ) -> anyhow::Result<()> {
     // Fetch teams
@@ -122,13 +125,6 @@ async fn run_org(
     })
     .await?;
     sp.finish_with_message(format!("Fetched {} repos", repos.len()));
-
-    // Sort
-    match sort {
-        SortOrder::Stale => repos.sort_by(|a, b| a.pushed_at.cmp(&b.pushed_at)),
-        SortOrder::Active => repos.sort_by(|a, b| b.pushed_at.cmp(&a.pushed_at)),
-        SortOrder::Name => repos.sort_by(|a, b| a.name.cmp(&b.name)),
-    }
 
     // Limit
     if let Some(n) = limit {
@@ -203,22 +199,34 @@ async fn run_org(
         ownership_results.retain(|r| r.alignment.matches_filter(status_filter));
     }
 
-    let summary = AuditSummary::from_repos(ownership_results);
+    let audit = AuditSummary::from_repos(ownership_results);
 
     match format {
-        OutputFormat::Json => output::json::print_json(&summary),
-        OutputFormat::Csv => output::csv::print_csv(&summary.repos),
+        OutputFormat::Json => output::json::print_json(&audit),
+        OutputFormat::Csv => output::csv::print_csv(&audit.repos),
+        OutputFormat::Names => {
+            print!("{}", output::table::render_names(&audit.repos));
+        }
         OutputFormat::Table => {
-            output::table::print_summary(&summary);
-            if detail {
-                println!();
-                output::table::print_detail(&summary.repos);
+            if summary {
+                println!("{}", output::table::render_summary(&audit));
             }
+            let team_label = if team_filter.is_empty() {
+                None
+            } else {
+                Some(team_filter.join(","))
+            };
+            let opts = output::table::TableOptions {
+                wide,
+                sort_columns: sort.to_vec(),
+                team_filter: team_label,
+            };
+            print!("{}", output::table::render_table(&audit.repos, &opts));
         }
     }
 
     // Exit code
-    if !status_filter.is_empty() && !summary.repos.is_empty() {
+    if !status_filter.is_empty() && !audit.repos.is_empty() {
         process::exit(1);
     }
 
@@ -338,6 +346,9 @@ async fn run_repo(
         }
         OutputFormat::Table => output::table::print_single_repo(&result),
         OutputFormat::Csv => output::csv::print_csv(&[result]),
+        OutputFormat::Names => {
+            println!("{}", result.repo_name);
+        }
     }
 
     if !status_filter.is_empty() {
