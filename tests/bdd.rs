@@ -3,8 +3,8 @@ use std::str::FromStr;
 use chrono::{NaiveDate, TimeZone, Utc};
 use cucumber::{given, then, when, World};
 
-use ownrs::output::table::{render_names, render_table, TableOptions};
-use ownrs::reconcile::types::{AlignmentStatus, RepoOwnership};
+use ownrs::output::table::{render_names, render_summary, render_table, TableOptions};
+use ownrs::reconcile::types::{AlignmentStatus, AuditSummary, RepoOwnership};
 
 #[derive(Debug, Default, World)]
 pub struct OwnrsWorld {
@@ -60,14 +60,28 @@ fn parse_optional(s: &str) -> Option<String> {
 #[given("the following repos:")]
 fn given_repos(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
     let table = step.table.as_ref().expect("expected a data table");
+    let headers: Vec<&str> = table.rows[0].iter().map(|s| s.as_str()).collect();
+    let notes_idx = headers.iter().position(|h| *h == "notes");
+
     for row in table.rows.iter().skip(1) {
-        // columns: repo_name | status | catalog_owner | codeowners_teams | admin_teams | pushed_at
+        // columns: repo_name | status | catalog_owner | codeowners_teams | admin_teams | pushed_at [| notes]
         let repo_name = row[0].clone();
         let alignment = parse_status(&row[1]);
         let catalog_owner = parse_optional(&row[2]);
         let codeowners_teams = parse_list(&row[3]);
         let admin_teams = parse_list(&row[4]);
         let pushed_at = parse_date(&row[5]);
+
+        let notes = if let Some(idx) = notes_idx {
+            let val = row[idx].trim();
+            if val.is_empty() || val == "-" {
+                Vec::new()
+            } else {
+                vec![val.to_string()]
+            }
+        } else {
+            Vec::new()
+        };
 
         world.repos.push(RepoOwnership {
             repo_name,
@@ -78,7 +92,7 @@ fn given_repos(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
             codeowners_teams_exist: codeowners_teams.iter().map(|t| (t.clone(), true)).collect(),
             admin_teams,
             alignment,
-            notes: Vec::new(),
+            notes,
             suggested_owners: None,
         });
     }
@@ -114,14 +128,18 @@ fn render_with_flags(world: &mut OwnrsWorld, flags: String) {
         match parts[i] {
             "--wide" => wide = true,
             "--sort" => {
-                // next token is the sort column
+                // next token is comma-separated sort columns
                 i += 1;
                 if i < parts.len() {
-                    sort_columns.push(parts[i].to_string());
+                    for col in parts[i].split(',') {
+                        sort_columns.push(col.trim().to_string());
+                    }
                 }
             }
             f if f.starts_with("--sort=") => {
-                sort_columns.push(f.trim_start_matches("--sort=").to_string());
+                for col in f.trim_start_matches("--sort=").split(',') {
+                    sort_columns.push(col.trim().to_string());
+                }
             }
             other => panic!("unknown flag: {other}"),
         }
@@ -136,8 +154,24 @@ fn render_with_flags(world: &mut OwnrsWorld, flags: String) {
     world.stdout = render_table(&world.repos, &opts);
 }
 
+#[when("I render the summary")]
+fn render_summary_step(world: &mut OwnrsWorld) {
+    let summary = AuditSummary::from_repos(world.repos.clone());
+    world.stdout = render_summary(&summary);
+}
+
+#[when(expr = "I render with format {string}")]
+fn render_with_format(world: &mut OwnrsWorld, format: String) {
+    match format.as_str() {
+        "names" => {
+            world.stdout = render_names(&world.repos);
+        }
+        _ => panic!("unknown format: {format}"),
+    }
+}
+
 #[when(expr = "I render with {string}")]
-fn render_with_format(world: &mut OwnrsWorld, flags: String) {
+fn render_with_flags_format(world: &mut OwnrsWorld, flags: String) {
     let parts: Vec<&str> = flags.split_whitespace().collect();
     let mut i = 0;
     while i < parts.len() {
@@ -274,6 +308,16 @@ fn sort_indicator_on(world: &mut OwnrsWorld, column: String) {
     assert!(
         header_line.contains('\u{2191}'), // ↑
         "Expected sort indicator (↑) on column '{column}', but header line is: '{header_line}'",
+    );
+}
+
+#[then("stdout should be:")]
+fn stdout_should_be(world: &mut OwnrsWorld, step: &cucumber::gherkin::Step) {
+    let expected = step.docstring.as_ref().expect("expected docstring").trim();
+    let actual = world.stdout.trim();
+    assert_eq!(
+        actual, expected,
+        "stdout mismatch\ngot:\n{actual}\nexpected:\n{expected}"
     );
 }
 
