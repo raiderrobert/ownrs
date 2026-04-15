@@ -3,7 +3,7 @@ use std::str::FromStr;
 use chrono::{NaiveDate, TimeZone, Utc};
 use cucumber::{given, then, when, World};
 
-use ownrs::output::table::{render_table, TableOptions};
+use ownrs::output::table::{render_names, render_table, TableOptions};
 use ownrs::reconcile::types::{AlignmentStatus, RepoOwnership};
 
 #[derive(Debug, Default, World)]
@@ -95,30 +95,68 @@ fn given_team_filter(world: &mut OwnrsWorld, team: String) {
 
 #[when("I render the table")]
 fn render_default(world: &mut OwnrsWorld) {
-    let opts = TableOptions::default();
-    world.stdout = render_table(&world.repos, &opts, world.team_filter.as_deref());
+    let opts = TableOptions {
+        wide: false,
+        sort_columns: vec![],
+        team_filter: world.team_filter.clone(),
+    };
+    world.stdout = render_table(&world.repos, &opts);
 }
 
 #[when(expr = "I render the table with {string}")]
 fn render_with_flags(world: &mut OwnrsWorld, flags: String) {
-    let mut opts = TableOptions::default();
-    for flag in flags.split_whitespace() {
-        match flag {
-            "--wide" => opts.wide = true,
+    let mut wide = false;
+    let mut sort_columns: Vec<String> = vec![];
+
+    let parts: Vec<&str> = flags.split_whitespace().collect();
+    let mut i = 0;
+    while i < parts.len() {
+        match parts[i] {
+            "--wide" => wide = true,
+            "--sort" => {
+                // next token is the sort column
+                i += 1;
+                if i < parts.len() {
+                    sort_columns.push(parts[i].to_string());
+                }
+            }
             f if f.starts_with("--sort=") => {
-                opts.sort = Some(f.trim_start_matches("--sort=").to_string());
+                sort_columns.push(f.trim_start_matches("--sort=").to_string());
             }
             other => panic!("unknown flag: {other}"),
         }
+        i += 1;
     }
-    world.stdout = render_table(&world.repos, &opts, world.team_filter.as_deref());
+
+    let opts = TableOptions {
+        wide,
+        sort_columns,
+        team_filter: world.team_filter.clone(),
+    };
+    world.stdout = render_table(&world.repos, &opts);
 }
 
-#[when(expr = "I render the table with format {string}")]
-fn render_format(world: &mut OwnrsWorld, format: String) {
-    let mut opts = TableOptions::default();
-    opts.format = Some(format);
-    world.stdout = render_table(&world.repos, &opts, world.team_filter.as_deref());
+#[when(expr = "I render with {string}")]
+fn render_with_format(world: &mut OwnrsWorld, flags: String) {
+    let parts: Vec<&str> = flags.split_whitespace().collect();
+    let mut i = 0;
+    while i < parts.len() {
+        match parts[i] {
+            "--format" => {
+                i += 1;
+                if i < parts.len() {
+                    match parts[i] {
+                        "names" => {
+                            world.stdout = render_names(&world.repos);
+                        }
+                        other => panic!("unknown format: {other}"),
+                    }
+                }
+            }
+            other => panic!("unknown flag: {other}"),
+        }
+        i += 1;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,9 +182,6 @@ fn stdout_not_contains(world: &mut OwnrsWorld, unexpected: String) {
 }
 
 fn data_rows(stdout: &str) -> Vec<&str> {
-    // Skip header lines (lines containing column headers) and blank/separator lines.
-    // Data rows are lines that don't start with common table-chrome characters
-    // and aren't the header row.
     let lines: Vec<&str> = stdout.lines().collect();
     let mut data = Vec::new();
     let mut past_header = false;
@@ -163,11 +198,14 @@ fn data_rows(stdout: &str) -> Vec<&str> {
         if !past_header {
             continue;
         }
-        // Skip separator lines (e.g. "---" or "===")
-        if trimmed.chars().all(|c| c == '-' || c == '=' || c == '+' || c == '|' || c == ' ') {
+        // Skip separator lines
+        if trimmed
+            .chars()
+            .all(|c| c == '-' || c == '=' || c == '+' || c == '|' || c == ' ')
+        {
             continue;
         }
-        // Skip tally/footer lines
+        // Skip tally/footer lines (contain count + status + percentage)
         if trimmed.contains("aligned") && trimmed.contains('%') {
             continue;
         }
@@ -228,15 +266,14 @@ fn third_data_row(world: &mut OwnrsWorld, expected: String) {
 
 #[then(expr = "the sort indicator should be on {string}")]
 fn sort_indicator_on(world: &mut OwnrsWorld, column: String) {
-    // Look for a sort arrow (e.g. "▲" or "▼") near the column name in the header
     let header_line = world
         .stdout
         .lines()
         .find(|l| l.contains(&column))
         .unwrap_or_else(|| panic!("Column '{column}' not found in stdout:\n{}", world.stdout));
     assert!(
-        header_line.contains('▲') || header_line.contains('▼'),
-        "Expected sort indicator on column '{column}', but header line is: '{header_line}'",
+        header_line.contains('\u{2191}'), // ↑
+        "Expected sort indicator (↑) on column '{column}', but header line is: '{header_line}'",
     );
 }
 

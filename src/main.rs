@@ -1,29 +1,22 @@
-mod cache;
-mod cli;
-mod config;
-mod github;
-mod output;
-mod reconcile;
-mod sources;
-mod suggest;
-
 use std::process;
 
 use chrono::Utc;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use cache::file_cache::FileCache;
-use cli::{OutputFormat, SortOrder, SuggestMode};
-use config::{Config, Scope};
-use github::client::GitHubClient;
-use github::members::fetch_team_members;
-use github::repos::list_repos;
-use github::teams::fetch_team_slugs;
-use reconcile::alignment::reconcile;
-use reconcile::types::{AlignmentStatus, AuditSummary};
-use sources::fetcher::fetch_all;
-use suggest::{fetch_commit_authors, fetch_pr_reviewers, score_teams};
+use ownrs::cache::file_cache::FileCache;
+use ownrs::cli::{self, OutputFormat, SortOrder, StatusFilter, SuggestMode};
+use ownrs::config::{Config, Scope};
+use ownrs::github::client::GitHubClient;
+use ownrs::github::members::fetch_team_members;
+use ownrs::github::repos::list_repos;
+use ownrs::github::teams::fetch_team_slugs;
+use ownrs::output;
+use ownrs::reconcile::alignment::reconcile;
+use ownrs::reconcile::types::{AlignmentStatus, AuditSummary};
+use ownrs::sources;
+use ownrs::sources::fetcher::fetch_all;
+use ownrs::suggest::{fetch_commit_authors, fetch_pr_reviewers, score_teams};
 
 #[tokio::main]
 async fn main() {
@@ -34,8 +27,8 @@ async fn main() {
 }
 
 async fn run() -> anyhow::Result<()> {
-    let cli = cli::Cli::parse();
-    let config = Config::from_cli(cli)?;
+    let cli_args = cli::Cli::parse();
+    let config = Config::from_cli(cli_args)?;
     let client = GitHubClient::new(&config.token)?;
     let cache = FileCache::new(config.cache_dir.clone(), config.cache_ttl)?;
 
@@ -98,7 +91,7 @@ async fn run_org(
     limit: Option<usize>,
     sort: &SortOrder,
     team_filter: &[String],
-    status_filter: &[cli::StatusFilter],
+    status_filter: &[StatusFilter],
     format: &OutputFormat,
     detail: bool,
     strict: bool,
@@ -238,7 +231,7 @@ async fn run_repo(
     config: &Config,
     org: &str,
     repo: &str,
-    status_filter: &[cli::StatusFilter],
+    status_filter: &[StatusFilter],
     format: &OutputFormat,
     strict: bool,
     suggest: &[SuggestMode],
