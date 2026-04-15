@@ -1,12 +1,7 @@
 Feature: Sorting
 
   Background:
-    Given the valid teams are "team-a"
-    And a test org with the following repos:
-      | repo_name   | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
-      | charlie-svc | team-a        | team-a           |             | 2026-04-10 |
-      | alpha-repo  | old-team      | old-team         |             | 2026-04-14 |
-      | beta-tool   | -             | -                |             | 2026-03-01 |
+    Given the fixtures from "sorting"
 
   Scenario: Sort by status
     When I run ownrs "org testorg --sort status"
