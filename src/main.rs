@@ -212,7 +212,15 @@ async fn run_org(
             if summary {
                 println!("{}", output::table::render_summary(&audit));
             }
-            let valid_sort_cols = ["repo", "status", "catalog-owner", "codeowners-teams", "last-push", "admin-teams", "notes"];
+            let valid_sort_cols = [
+                "repo",
+                "status",
+                "catalog-owner",
+                "codeowners-teams",
+                "last-push",
+                "admin-teams",
+                "notes",
+            ];
             for col in sort {
                 if !valid_sort_cols.contains(&col.as_str()) {
                     anyhow::bail!(

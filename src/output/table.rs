@@ -83,17 +83,17 @@ pub fn render_table(repos: &[RepoOwnership], opts: &TableOptions) -> String {
     };
 
     // Title line
-    let filter_label = opts
-        .team_filter
-        .as_deref()
-        .unwrap_or("all");
+    let filter_label = opts.team_filter.as_deref().unwrap_or("all");
     let title = format!("repos({})[{}]", filter_label, sorted.len());
 
     // Build all row data
     let rows: Vec<Vec<String>> = sorted.iter().map(|r| row_values(r, &columns)).collect();
 
     // Compute column widths (min of max content width and MAX_COL_WIDTH)
-    let mut col_widths: Vec<usize> = columns.iter().map(|c| UnicodeWidthStr::width(c.header())).collect();
+    let mut col_widths: Vec<usize> = columns
+        .iter()
+        .map(|c| UnicodeWidthStr::width(c.header()))
+        .collect();
     for row in &rows {
         for (i, cell) in row.iter().enumerate() {
             let w = UnicodeWidthStr::width(cell.as_str());
@@ -318,10 +318,7 @@ fn sort_repos(repos: &mut [RepoOwnership], sort_columns: &[String]) {
     repos.sort_by(|a, b| {
         for col in sort_columns {
             let ord = match col.to_lowercase().as_str() {
-                "repo" => a
-                    .repo_name
-                    .to_lowercase()
-                    .cmp(&b.repo_name.to_lowercase()),
+                "repo" => a.repo_name.to_lowercase().cmp(&b.repo_name.to_lowercase()),
                 "status" => a.alignment.to_string().cmp(&b.alignment.to_string()),
                 "catalog-owner" => {
                     let a_val = a.catalog_owner.as_deref().unwrap_or("");
@@ -421,11 +418,7 @@ fn row_values(repo: &RepoOwnership, columns: &[Column]) -> Vec<String> {
         .map(|col| match col {
             Column::Repo => repo.repo_name.clone(),
             Column::Status => repo.alignment.to_string(),
-            Column::CatalogOwner => repo
-                .catalog_owner
-                .as_deref()
-                .unwrap_or("-")
-                .to_string(),
+            Column::CatalogOwner => repo.catalog_owner.as_deref().unwrap_or("-").to_string(),
             Column::CodeownersTeams => {
                 if repo.codeowners_teams.is_empty() {
                     "-".to_string()
@@ -454,4 +447,3 @@ fn row_values(repo: &RepoOwnership, columns: &[Column]) -> Vec<String> {
         })
         .collect()
 }
-
