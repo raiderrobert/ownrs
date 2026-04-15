@@ -65,9 +65,9 @@ pub enum Command {
         #[arg(long)]
         limit: Option<usize>,
 
-        /// Sort order: stale (default), active, name
-        #[arg(long, default_value = "stale")]
-        sort: SortOrder,
+        /// Sort by column name(s), comma-separated (repo, status, catalog-owner, codeowners-teams, last-push, admin-teams, notes)
+        #[arg(long, value_delimiter = ',', default_value = "repo")]
+        sort: Vec<String>,
 
         /// Filter to repos referencing this team (comma-separated)
         #[arg(long, value_delimiter = ',')]
@@ -77,13 +77,17 @@ pub enum Command {
         #[arg(long, value_delimiter = ',')]
         status: Vec<StatusFilter>,
 
-        /// Output format: table (default), csv, json
+        /// Output format: table (default), csv, json, names
         #[arg(long, default_value = "table")]
         format: OutputFormat,
 
-        /// Show per-repo breakdown
+        /// Show summary statistics table
         #[arg(long)]
-        detail: bool,
+        summary: bool,
+
+        /// Show all columns (Admin Teams, Notes)
+        #[arg(long)]
+        wide: bool,
 
         /// Require exact team set match across all sources (default: intersection)
         #[arg(long)]
@@ -113,13 +117,6 @@ pub enum Command {
     },
 }
 
-#[derive(Clone, ValueEnum)]
-pub enum SortOrder {
-    Stale,
-    Active,
-    Name,
-}
-
 #[derive(Clone, ValueEnum, PartialEq, Eq)]
 pub enum StatusFilter {
     Aligned,
@@ -144,4 +141,5 @@ pub enum OutputFormat {
     Table,
     Csv,
     Json,
+    Names,
 }

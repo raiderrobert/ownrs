@@ -1,29 +1,22 @@
-mod cache;
-mod cli;
-mod config;
-mod github;
-mod output;
-mod reconcile;
-mod sources;
-mod suggest;
-
 use std::process;
 
 use chrono::Utc;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use cache::file_cache::FileCache;
-use cli::{OutputFormat, SortOrder, SuggestMode};
-use config::{Config, Scope};
-use github::client::GitHubClient;
-use github::members::fetch_team_members;
-use github::repos::list_repos;
-use github::teams::fetch_team_slugs;
-use reconcile::alignment::reconcile;
-use reconcile::types::{AlignmentStatus, AuditSummary};
-use sources::fetcher::fetch_all;
-use suggest::{fetch_commit_authors, fetch_pr_reviewers, score_teams};
+use ownrs::cache::file_cache::FileCache;
+use ownrs::cli::{self, OutputFormat, StatusFilter, SuggestMode};
+use ownrs::config::{Config, Scope};
+use ownrs::github::client::GitHubClient;
+use ownrs::github::members::fetch_team_members;
+use ownrs::github::repos::list_repos;
+use ownrs::github::teams::fetch_team_slugs;
+use ownrs::output;
+use ownrs::reconcile::alignment::reconcile;
+use ownrs::reconcile::types::{AlignmentStatus, AuditSummary};
+use ownrs::sources;
+use ownrs::sources::fetcher::fetch_all;
+use ownrs::suggest::{fetch_commit_authors, fetch_pr_reviewers, score_teams};
 
 #[tokio::main]
 async fn main() {
@@ -34,8 +27,8 @@ async fn main() {
 }
 
 async fn run() -> anyhow::Result<()> {
-    let cli = cli::Cli::parse();
-    let config = Config::from_cli(cli)?;
+    let cli_args = cli::Cli::parse();
+    let config = Config::from_cli(cli_args)?;
     let client = GitHubClient::new(&config.token)?;
     let cache = FileCache::new(config.cache_dir.clone(), config.cache_ttl)?;
 
@@ -47,7 +40,8 @@ async fn run() -> anyhow::Result<()> {
             ref team_filter,
             ref status_filter,
             ref format,
-            detail,
+            summary,
+            wide,
             strict,
         } => {
             run_org(
@@ -60,7 +54,8 @@ async fn run() -> anyhow::Result<()> {
                 team_filter,
                 status_filter,
                 format,
-                detail,
+                summary,
+                wide,
                 strict,
             )
             .await
@@ -90,17 +85,19 @@ async fn run() -> anyhow::Result<()> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_org(
     client: &GitHubClient,
     cache: &FileCache,
     config: &Config,
     org: &str,
     limit: Option<usize>,
-    sort: &SortOrder,
+    sort: &[String],
     team_filter: &[String],
-    status_filter: &[cli::StatusFilter],
+    status_filter: &[StatusFilter],
     format: &OutputFormat,
-    detail: bool,
+    summary: bool,
+    wide: bool,
     strict: bool,
 ) -> anyhow::Result<()> {
     // Fetch teams
@@ -129,13 +126,6 @@ async fn run_org(
     })
     .await?;
     sp.finish_with_message(format!("Fetched {} repos", repos.len()));
-
-    // Sort
-    match sort {
-        SortOrder::Stale => repos.sort_by(|a, b| a.pushed_at.cmp(&b.pushed_at)),
-        SortOrder::Active => repos.sort_by(|a, b| b.pushed_at.cmp(&a.pushed_at)),
-        SortOrder::Name => repos.sort_by(|a, b| a.name.cmp(&b.name)),
-    }
 
     // Limit
     if let Some(n) = limit {
@@ -210,35 +200,66 @@ async fn run_org(
         ownership_results.retain(|r| r.alignment.matches_filter(status_filter));
     }
 
-    let summary = AuditSummary::from_repos(ownership_results);
+    let audit = AuditSummary::from_repos(ownership_results);
 
     match format {
-        OutputFormat::Json => output::json::print_json(&summary),
-        OutputFormat::Csv => output::csv::print_csv(&summary.repos),
+        OutputFormat::Json => output::json::print_json(&audit),
+        OutputFormat::Csv => output::csv::print_csv(&audit.repos),
+        OutputFormat::Names => {
+            print!("{}", output::table::render_names(&audit.repos));
+        }
         OutputFormat::Table => {
-            output::table::print_summary(&summary);
-            if detail {
-                println!();
-                output::table::print_detail(&summary.repos);
+            if summary {
+                println!("{}", output::table::render_summary(&audit));
             }
+            let valid_sort_cols = [
+                "repo",
+                "status",
+                "catalog-owner",
+                "codeowners-teams",
+                "last-push",
+                "admin-teams",
+                "notes",
+            ];
+            for col in sort {
+                if !valid_sort_cols.contains(&col.as_str()) {
+                    anyhow::bail!(
+                        "Invalid sort column '{}'. Valid columns: {}",
+                        col,
+                        valid_sort_cols.join(", ")
+                    );
+                }
+            }
+            let team_label = if team_filter.is_empty() {
+                None
+            } else {
+                Some(team_filter.join(","))
+            };
+            let opts = output::table::TableOptions {
+                wide,
+                sort_columns: sort.to_vec(),
+                team_filter: team_label,
+            };
+            print!("{}", output::table::render_table(&audit.repos, &opts));
         }
     }
 
     // Exit code
-    if !status_filter.is_empty() && !summary.repos.is_empty() {
+    if !status_filter.is_empty() && !audit.repos.is_empty() {
         process::exit(1);
     }
 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_repo(
     client: &GitHubClient,
     cache: &FileCache,
     config: &Config,
     org: &str,
     repo: &str,
-    status_filter: &[cli::StatusFilter],
+    status_filter: &[StatusFilter],
     format: &OutputFormat,
     strict: bool,
     suggest: &[SuggestMode],
@@ -345,6 +366,9 @@ async fn run_repo(
         }
         OutputFormat::Table => output::table::print_single_repo(&result),
         OutputFormat::Csv => output::csv::print_csv(&[result]),
+        OutputFormat::Names => {
+            println!("{}", result.repo_name);
+        }
     }
 
     if !status_filter.is_empty() {
