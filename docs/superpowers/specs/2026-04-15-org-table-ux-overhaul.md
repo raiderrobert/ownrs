@@ -77,3 +77,164 @@ Replace comfy-table bordered output with custom padded-column rendering:
 - `--sort stale` / `--sort active` no longer valid. Use `--sort last-push`.
 - Default sort changes from `stale` to `repo`.
 - Default output changes from summary table to detail table with tally footer.
+
+## BDD stories
+
+Output formatting tests using cucumber-rs. Tests feed canned `RepoOwnership` data into the rendering layer and assert on stdout. No GitHub API calls.
+
+### Infrastructure
+
+- `tests/bdd.rs` — World struct holding stdout/stderr capture, step definitions, main runner
+- `tests/features/` — Gherkin feature files
+- Depends on: `cucumber`, `futures`, `tempfile` dev-dependencies
+
+### Feature: Default table output
+
+```gherkin
+Feature: Default table output
+
+  Background:
+    Given the following repos:
+      | repo_name    | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
+      | beta-service | stale   | usermgmt      | usermgmt         |             | 2026-04-10 |
+      | alpha-repo   | aligned | my-team       | my-team          | my-team     | 2026-04-14 |
+      | gamma-tool   | missing | -             | -                |             | 2026-03-01 |
+
+  Scenario: Default output shows detail table sorted by repo name
+    When I render the table
+    Then stdout should contain "REPO"
+    And stdout should contain "STATUS"
+    And stdout should contain "CATALOG OWNER"
+    And stdout should contain "CODEOWNERS TEAMS"
+    And stdout should contain "LAST PUSH"
+    And the first data row should start with "alpha-repo"
+    And the second data row should start with "beta-service"
+    And the third data row should start with "gamma-tool"
+
+  Scenario: Default output includes tally footer with percentages
+    When I render the table
+    Then stdout should contain "1 aligned (33%)"
+    And stdout should contain "1 stale (33%)"
+    And stdout should contain "1 missing (33%)"
+    And stdout should not contain "0 "
+
+  Scenario: Default output includes title line with count
+    Given the team filter is "my-team"
+    When I render the table
+    Then stdout should contain "repos(my-team)["
+
+  Scenario: Default output does not show Admin Teams or Notes columns
+    When I render the table
+    Then stdout should not contain "ADMIN TEAMS"
+    And stdout should not contain "NOTES"
+```
+
+### Feature: Wide output
+
+```gherkin
+Feature: Wide output
+
+  Background:
+    Given the following repos:
+      | repo_name  | status  | catalog_owner | codeowners_teams | admin_teams       | pushed_at  | notes                  |
+      | alpha-repo | aligned | my-team       | my-team          | my-team, sec-eng  | 2026-04-14 |                        |
+      | beta-svc   | stale   | usermgmt      | usermgmt         | my-team           | 2026-04-10 | references stale team  |
+
+  Scenario: Wide flag adds Admin Teams and Notes columns
+    When I render the table with "--wide"
+    Then stdout should contain "ADMIN TEAMS"
+    And stdout should contain "NOTES"
+    And stdout should contain "my-team, sec-eng"
+    And stdout should contain "references stale team"
+```
+
+### Feature: Summary flag
+
+```gherkin
+Feature: Summary flag
+
+  Background:
+    Given the following repos:
+      | repo_name  | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
+      | alpha-repo | aligned | my-team       | my-team          | my-team     | 2026-04-14 |
+      | beta-svc   | stale   | usermgmt      | usermgmt         |             | 2026-04-10 |
+
+  Scenario: Summary flag shows status count table
+    When I render the table with "--summary"
+    Then stdout should contain "Status"
+    And stdout should contain "Count"
+    And stdout should contain "Aligned"
+    And stdout should contain "1"
+```
+
+### Feature: Sorting
+
+```gherkin
+Feature: Sorting
+
+  Background:
+    Given the following repos:
+      | repo_name    | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
+      | charlie-svc  | aligned | team-a        | team-a           |             | 2026-04-10 |
+      | alpha-repo   | stale   | usermgmt      | usermgmt         |             | 2026-04-14 |
+      | beta-tool    | missing | -             | -                |             | 2026-03-01 |
+
+  Scenario: Sort by status
+    When I render the table with "--sort status"
+    Then the first data row should start with "charlie-svc"
+    And the sort indicator should be on "STATUS"
+
+  Scenario: Sort by last-push
+    When I render the table with "--sort last-push"
+    Then the first data row should start with "beta-tool"
+
+  Scenario: Multi-column sort
+    When I render the table with "--sort status,repo"
+    Then the sort indicator should be on "STATUS"
+
+  Scenario: Sort indicator arrow on sorted column
+    When I render the table with "--sort repo"
+    Then stdout should contain "REPO↑"
+    And stdout should not contain "STATUS↑"
+```
+
+### Feature: Format names
+
+```gherkin
+Feature: Format names
+
+  Background:
+    Given the following repos:
+      | repo_name    | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
+      | beta-service | stale   | usermgmt      | usermgmt         |             | 2026-04-10 |
+      | alpha-repo   | aligned | my-team       | my-team          |             | 2026-04-14 |
+
+  Scenario: Names format outputs one repo per line alphabetically
+    When I render with "--format names"
+    Then stdout should be:
+      """
+      alpha-repo
+      beta-service
+      """
+
+  Scenario: Names format has no headers
+    When I render with "--format names"
+    Then stdout should not contain "REPO"
+    And stdout should not contain "STATUS"
+```
+
+### Feature: Truncation
+
+```gherkin
+Feature: Long value truncation
+
+  Background:
+    Given the following repos:
+      | repo_name  | status  | catalog_owner | codeowners_teams                                    | admin_teams | pushed_at  |
+      | alpha-repo | aligned | my-team       | team-a, team-b, team-c, team-d, team-e, team-f     |             | 2026-04-14 |
+
+  Scenario: Long values are truncated with ellipsis
+    When I render the table
+    Then stdout should contain "…"
+    And no output line should exceed the terminal width
+```
