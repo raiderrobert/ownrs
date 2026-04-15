@@ -72,10 +72,7 @@ fn build_catalog_yaml(owner: &str) -> String {
 }
 
 fn build_codeowners_content(teams: &[String]) -> String {
-    let owners: Vec<String> = teams
-        .iter()
-        .map(|t| format!("@{}/{}", ORG, t))
-        .collect();
+    let owners: Vec<String> = teams.iter().map(|t| format!("@{}/{}", ORG, t)).collect();
     format!("* {}\n", owners.join(" "))
 }
 
@@ -146,7 +143,11 @@ fn write_fixtures(world: &mut OwnrsWorld) {
         } else {
             serde_json::Value::String(build_codeowners_content(&repo.codeowners_teams))
         };
-        write_cache_file(&cache_dir, &co_key, &serde_json::to_string(&co_value).unwrap());
+        write_cache_file(
+            &cache_dir,
+            &co_key,
+            &serde_json::to_string(&co_value).unwrap(),
+        );
 
         // catalog-info.yaml
         let cat_key = format!("content_{ORG}_{name}_catalog");
@@ -154,7 +155,11 @@ fn write_fixtures(world: &mut OwnrsWorld) {
             Some(owner) => serde_json::Value::String(build_catalog_yaml(owner)),
             None => serde_json::Value::Null,
         };
-        write_cache_file(&cache_dir, &cat_key, &serde_json::to_string(&cat_value).unwrap());
+        write_cache_file(
+            &cache_dir,
+            &cat_key,
+            &serde_json::to_string(&cat_value).unwrap(),
+        );
 
         // admin teams
         let admin_key = format!("admin_teams_{ORG}_{name}");
@@ -226,11 +231,7 @@ fn run_ownrs(world: &mut OwnrsWorld, args_str: String) {
         .env("GITHUB_TOKEN", "fake-token-for-testing")
         .output()
         .unwrap_or_else(|e| {
-            panic!(
-                "Failed to execute {}: {}",
-                binary.display(),
-                e
-            );
+            panic!("Failed to execute {}: {}", binary.display(), e);
         });
 
     world.exit_code = Some(output.status.code().unwrap_or(-1));
