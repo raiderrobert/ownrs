@@ -54,10 +54,7 @@ fn build_codeowners_content(teams: &[String]) -> String {
 ///
 /// Returns `(TempDir, PathBuf)` — the TempDir must be held alive for the
 /// duration of the test, and the PathBuf is the cache directory path.
-pub fn write_fixtures(
-    repos: &[RepoRow],
-    valid_teams: Option<&[String]>,
-) -> (TempDir, PathBuf) {
+pub fn write_fixtures(repos: &[RepoRow], valid_teams: Option<&[String]>) -> (TempDir, PathBuf) {
     let temp_dir = TempDir::new().expect("failed to create temp dir");
     let cache_dir = temp_dir.path().to_path_buf();
 
