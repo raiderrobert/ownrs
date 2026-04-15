@@ -3,7 +3,7 @@ Feature: Format names
   Background:
     Given the following repos:
       | repo_name    | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
-      | beta-service | stale   | usermgmt      | usermgmt         |             | 2026-04-10 |
+      | beta-service | stale   | old-team      | old-team         |             | 2026-04-10 |
       | alpha-repo   | aligned | my-team       | my-team          |             | 2026-04-14 |
 
   Scenario: Names format outputs one repo per line alphabetically

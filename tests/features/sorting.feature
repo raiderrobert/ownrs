@@ -4,7 +4,7 @@ Feature: Sorting
     Given the following repos:
       | repo_name    | status  | catalog_owner | codeowners_teams | admin_teams | pushed_at  |
       | charlie-svc  | aligned | team-a        | team-a           |             | 2026-04-10 |
-      | alpha-repo   | stale   | usermgmt      | usermgmt         |             | 2026-04-14 |
+      | alpha-repo   | stale   | old-team      | old-team         |             | 2026-04-14 |
       | beta-tool    | missing | -             | -                |             | 2026-03-01 |
 
   Scenario: Sort by status
