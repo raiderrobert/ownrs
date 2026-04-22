@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/raiderrobert/ownrs/compare/v0.1.4...v0.1.5) (2026-04-20)
+
+
+### Features
+
+* overhaul org table output ([#22](https://github.com/raiderrobert/ownrs/issues/22)) ([7dc9d8d](https://github.com/raiderrobert/ownrs/commit/7dc9d8d522779eb668a8408f2f9dc956754030b3))
+
+
+### Bug Fixes
+
+* use proper octocrab error type matching for admin teams 403/404 ([#20](https://github.com/raiderrobert/ownrs/issues/20)) ([28545a5](https://github.com/raiderrobert/ownrs/commit/28545a5a75c8830f732eb6bcc5a9638cc6e3cf1c))
+
 ## [0.1.4](https://github.com/raiderrobert/ownrs/compare/v0.1.3...v0.1.4) (2026-03-26)
 
 
