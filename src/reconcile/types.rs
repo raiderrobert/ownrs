@@ -11,6 +11,7 @@ pub enum AlignmentStatus {
     CatalogOnly,
     CodeownersOnly,
     AdminOnly,
+    CodeownersInvalid,
     Stale,
     Missing,
 }
@@ -26,6 +27,7 @@ impl AlignmentStatus {
             StatusFilter::CatalogOnly => *self == AlignmentStatus::CatalogOnly,
             StatusFilter::CodeownersOnly => *self == AlignmentStatus::CodeownersOnly,
             StatusFilter::AdminOnly => *self == AlignmentStatus::AdminOnly,
+            StatusFilter::CodeownersInvalid => *self == AlignmentStatus::CodeownersInvalid,
             StatusFilter::Stale => *self == AlignmentStatus::Stale,
             StatusFilter::Missing => *self == AlignmentStatus::Missing,
         })
@@ -40,6 +42,7 @@ impl std::fmt::Display for AlignmentStatus {
             AlignmentStatus::CatalogOnly => write!(f, "catalog-only"),
             AlignmentStatus::CodeownersOnly => write!(f, "codeowners-only"),
             AlignmentStatus::AdminOnly => write!(f, "admin-only"),
+            AlignmentStatus::CodeownersInvalid => write!(f, "codeowners-invalid"),
             AlignmentStatus::Stale => write!(f, "stale"),
             AlignmentStatus::Missing => write!(f, "missing"),
         }
@@ -69,6 +72,7 @@ pub struct AuditSummary {
     pub catalog_only: usize,
     pub codeowners_only: usize,
     pub admin_only: usize,
+    pub codeowners_invalid: usize,
     pub stale: usize,
     pub missing: usize,
     pub repos: Vec<RepoOwnership>,
@@ -97,6 +101,10 @@ impl AuditSummary {
             .iter()
             .filter(|r| r.alignment == AlignmentStatus::AdminOnly)
             .count();
+        let codeowners_invalid = repos
+            .iter()
+            .filter(|r| r.alignment == AlignmentStatus::CodeownersInvalid)
+            .count();
         let stale = repos
             .iter()
             .filter(|r| r.alignment == AlignmentStatus::Stale)
@@ -113,6 +121,7 @@ impl AuditSummary {
             catalog_only,
             codeowners_only,
             admin_only,
+            codeowners_invalid,
             stale,
             missing,
             repos,

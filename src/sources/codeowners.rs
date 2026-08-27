@@ -1,3 +1,35 @@
+/// What CODEOWNERS says about a repo, as far as reconciliation cares.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CodeownersState {
+    /// No CODEOWNERS file at any candidate path.
+    Absent,
+    /// A file exists but assigns no reviewers, so it owns nothing in practice.
+    Unusable,
+    /// A usable rule was found. `teams` is empty when the rule names only
+    /// individual users, which is valid but gives nothing to reconcile against.
+    Owned { teams: Vec<String> },
+}
+
+impl CodeownersState {
+    /// Classify the selected CODEOWNERS file, or its absence.
+    pub fn from_content(content: Option<&str>) -> Self {
+        match content {
+            None => Self::Absent,
+            Some(c) if has_usable_rule(c) => Self::Owned {
+                teams: extract_teams(c),
+            },
+            Some(_) => Self::Unusable,
+        }
+    }
+
+    pub fn teams(&self) -> &[String] {
+        match self {
+            Self::Owned { teams } => teams,
+            Self::Absent | Self::Unusable => &[],
+        }
+    }
+}
+
 /// Owners named on the `*` rule, split by kind.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct WildcardOwners {
@@ -163,6 +195,36 @@ mod tests {
         let owners = parse_wildcard("* \n").unwrap();
         assert!(owners.is_empty());
         assert!(!has_usable_rule("* \n"));
+    }
+
+    #[test]
+    fn state_absent_when_no_file() {
+        assert_eq!(CodeownersState::from_content(None), CodeownersState::Absent);
+    }
+
+    #[test]
+    fn state_unusable_for_a_file_that_assigns_nobody() {
+        assert_eq!(
+            CodeownersState::from_content(Some("@acme/team-a\n")),
+            CodeownersState::Unusable
+        );
+        assert_eq!(
+            CodeownersState::from_content(Some("")),
+            CodeownersState::Unusable
+        );
+    }
+
+    #[test]
+    fn state_owned_with_no_teams_for_a_user_only_rule() {
+        let state = CodeownersState::from_content(Some("* @alice\n"));
+        assert_eq!(state, CodeownersState::Owned { teams: vec![] });
+        assert!(state.teams().is_empty());
+    }
+
+    #[test]
+    fn state_owned_carries_teams() {
+        let state = CodeownersState::from_content(Some("* @acme/team-a\n"));
+        assert_eq!(state.teams(), ["team-a".to_string()]);
     }
 
     #[test]

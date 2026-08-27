@@ -25,6 +25,9 @@ struct RepoRow {
 
 const ORG: &str = "testorg";
 
+/// Feature-table value for a CODEOWNERS file that exists but has no usable rule.
+const INVALID_CODEOWNERS: &str = "!invalid";
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -72,8 +75,16 @@ fn build_catalog_yaml(owner: &str) -> String {
 }
 
 fn build_codeowners_content(teams: &[String]) -> String {
+    if is_invalid_codeowners(teams) {
+        // A bare owner list with no `*` path pattern — what GitHub rejects.
+        return format!("@{ORG}/my-team\n");
+    }
     let owners: Vec<String> = teams.iter().map(|t| format!("@{}/{}", ORG, t)).collect();
     format!("* {}\n", owners.join(" "))
+}
+
+fn is_invalid_codeowners(teams: &[String]) -> bool {
+    teams.len() == 1 && teams[0] == INVALID_CODEOWNERS
 }
 
 fn write_fixtures(world: &mut OwnrsWorld) {
@@ -90,8 +101,10 @@ fn write_fixtures(world: &mut OwnrsWorld) {
             if let Some(ref owner) = repo.catalog_owner {
                 teams.insert(owner.clone());
             }
-            for t in &repo.codeowners_teams {
-                teams.insert(t.clone());
+            if !is_invalid_codeowners(&repo.codeowners_teams) {
+                for t in &repo.codeowners_teams {
+                    teams.insert(t.clone());
+                }
             }
             for t in &repo.admin_teams {
                 teams.insert(t.clone());

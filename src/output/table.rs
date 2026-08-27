@@ -213,6 +213,11 @@ pub fn render_summary(summary: &AuditSummary) -> String {
         &pct(summary.admin_only),
     ]);
     table.add_row(vec![
+        "Codeowners Invalid",
+        &summary.codeowners_invalid.to_string(),
+        &pct(summary.codeowners_invalid),
+    ]);
+    table.add_row(vec![
         "Stale",
         &summary.stale.to_string(),
         &pct(summary.stale),
@@ -396,6 +401,7 @@ fn tally_footer(repos: &[RepoOwnership]) -> String {
         ("catalog-only", AlignmentStatus::CatalogOnly),
         ("codeowners-only", AlignmentStatus::CodeownersOnly),
         ("admin-only", AlignmentStatus::AdminOnly),
+        ("codeowners-invalid", AlignmentStatus::CodeownersInvalid),
         ("stale", AlignmentStatus::Stale),
         ("missing", AlignmentStatus::Missing),
     ];

@@ -1,18 +1,20 @@
 use std::collections::HashSet;
 
 use super::types::{AlignmentStatus, RepoOwnership};
+use crate::sources::codeowners::CodeownersState;
 use chrono::{DateTime, Utc};
 
 pub fn reconcile(
     repo_name: &str,
     pushed_at: Option<DateTime<Utc>>,
     catalog_owner: Option<&str>,
-    codeowners_teams: &[String],
+    codeowners: &CodeownersState,
     admin_teams: &[String],
     valid_teams: &HashSet<String>,
     strict: bool,
 ) -> RepoOwnership {
     let mut notes = Vec::new();
+    let codeowners_teams = codeowners.teams();
 
     // Phase 1 — Stale detection: check all referenced teams against valid_teams
     let catalog_team_exists = catalog_owner.map(|t| valid_teams.contains(t));
@@ -57,6 +59,25 @@ pub fn reconcile(
             codeowners_teams_exist,
             admin_teams: admin_teams.to_vec(),
             alignment: AlignmentStatus::Stale,
+            notes,
+            suggested_owners: None,
+        };
+    }
+
+    // Phase 1b — A CODEOWNERS file exists but assigns no reviewers at all.
+    // Usually a lost `*` path pattern or an empty file, which GitHub honors no
+    // more than we do, so the repo has no review assignment despite looking owned.
+    if *codeowners == CodeownersState::Unusable {
+        notes.push("CODEOWNERS file found but assigns no reviewers".to_string());
+        return RepoOwnership {
+            repo_name: repo_name.to_string(),
+            pushed_at,
+            catalog_owner: catalog_owner.map(String::from),
+            codeowners_teams: Vec::new(),
+            catalog_team_exists,
+            codeowners_teams_exist,
+            admin_teams: admin_teams.to_vec(),
+            alignment: AlignmentStatus::CodeownersInvalid,
             notes,
             suggested_owners: None,
         };
@@ -165,13 +186,18 @@ mod tests {
         names.iter().map(|s| s.to_string()).collect()
     }
 
+    /// A usable CODEOWNERS file naming `names` as teams.
+    fn co(names: &[&str]) -> CodeownersState {
+        CodeownersState::Owned { teams: sv(names) }
+    }
+
     #[test]
     fn all_three_agree() {
         let result = reconcile(
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &sv(&["team-a"]),
             &teams(&["team-a"]),
             false,
@@ -185,7 +211,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-a", "team-b"]),
+            &co(&["team-a", "team-b"]),
             &sv(&["team-a", "team-c"]),
             &teams(&["team-a", "team-b", "team-c"]),
             false,
@@ -199,7 +225,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-b"]),
+            &co(&["team-b"]),
             &sv(&["team-c"]),
             &teams(&["team-a", "team-b", "team-c"]),
             false,
@@ -213,7 +239,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &[],
             &teams(&["team-a"]),
             false,
@@ -227,7 +253,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-b"]),
+            &co(&["team-b"]),
             &[],
             &teams(&["team-a", "team-b"]),
             false,
@@ -241,7 +267,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &[],
+            &CodeownersState::Absent,
             &[],
             &teams(&["team-a"]),
             false,
@@ -255,7 +281,7 @@ mod tests {
             "repo",
             None,
             None,
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &[],
             &teams(&["team-a"]),
             false,
@@ -269,7 +295,7 @@ mod tests {
             "repo",
             None,
             None,
-            &[],
+            &CodeownersState::Absent,
             &sv(&["team-a"]),
             &teams(&["team-a"]),
             false,
@@ -279,7 +305,15 @@ mod tests {
 
     #[test]
     fn missing_when_none() {
-        let result = reconcile("repo", None, None, &[], &[], &teams(&["team-a"]), false);
+        let result = reconcile(
+            "repo",
+            None,
+            None,
+            &CodeownersState::Absent,
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
         assert_eq!(result.alignment, AlignmentStatus::Missing);
     }
 
@@ -289,7 +323,7 @@ mod tests {
             "repo",
             None,
             Some("team-gone"),
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &sv(&["team-a"]),
             &teams(&["team-a"]),
             false,
@@ -303,7 +337,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-gone"]),
+            &co(&["team-gone"]),
             &[],
             &teams(&["team-a"]),
             false,
@@ -317,7 +351,7 @@ mod tests {
             "repo",
             None,
             None,
-            &[],
+            &CodeownersState::Absent,
             &sv(&["team-gone"]),
             &teams(&["team-a"]),
             false,
@@ -331,7 +365,7 @@ mod tests {
             "repo",
             None,
             Some("Team-A"),
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &[],
             &teams(&["team-a", "Team-A"]),
             false,
@@ -345,7 +379,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-a"]),
+            &co(&["team-a"]),
             &sv(&["team-a"]),
             &teams(&["team-a"]),
             true,
@@ -359,7 +393,7 @@ mod tests {
             "repo",
             None,
             Some("team-a"),
-            &sv(&["team-a", "team-b"]),
+            &co(&["team-a", "team-b"]),
             &sv(&["team-a"]),
             &teams(&["team-a", "team-b"]),
             true,
@@ -368,12 +402,87 @@ mod tests {
     }
 
     #[test]
+    fn codeowners_invalid_when_file_present_but_unparseable() {
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &CodeownersState::Unusable,
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
+        assert_eq!(result.alignment, AlignmentStatus::CodeownersInvalid);
+        assert!(result
+            .notes
+            .iter()
+            .any(|n| n.contains("assigns no reviewers")));
+    }
+
+    #[test]
+    fn codeowners_absent_is_not_invalid() {
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &CodeownersState::Absent,
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
+        assert_eq!(result.alignment, AlignmentStatus::CatalogOnly);
+    }
+
+    #[test]
+    fn invalid_codeowners_with_no_other_source_is_not_missing() {
+        let result = reconcile(
+            "repo",
+            None,
+            None,
+            &CodeownersState::Unusable,
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
+        assert_eq!(result.alignment, AlignmentStatus::CodeownersInvalid);
+    }
+
+    #[test]
+    fn user_only_codeowners_is_not_invalid() {
+        // `* @alice` is valid CODEOWNERS — it just contributes no team to reconcile.
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-a"),
+            &CodeownersState::Owned { teams: vec![] },
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
+        assert_eq!(result.alignment, AlignmentStatus::CatalogOnly);
+    }
+
+    #[test]
+    fn stale_takes_precedence_over_invalid_codeowners() {
+        let result = reconcile(
+            "repo",
+            None,
+            Some("team-gone"),
+            &CodeownersState::Unusable,
+            &[],
+            &teams(&["team-a"]),
+            false,
+        );
+        assert_eq!(result.alignment, AlignmentStatus::Stale);
+    }
+
+    #[test]
     fn strict_single_source() {
         let result = reconcile(
             "repo",
             None,
             Some("team-a"),
-            &[],
+            &CodeownersState::Absent,
             &[],
             &teams(&["team-a"]),
             true,
