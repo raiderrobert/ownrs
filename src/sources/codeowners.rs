@@ -1,11 +1,28 @@
-/// Extract all top-level teams from CODEOWNERS content.
-///
-/// Looks for the `* @org/team-name` rule and strips the `@org/` prefix.
-/// Returns all teams on the wildcard rule, deduplicated, preserving order.
-pub fn extract_teams(content: &str) -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
-    let mut teams = Vec::new();
+/// Owners named on the `*` rule, split by kind.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct WildcardOwners {
+    /// `@org/team` entries, with the `@org/` prefix stripped.
+    pub teams: Vec<String>,
+    /// `@username` entries, with the `@` stripped.
+    pub users: Vec<String>,
+}
 
+impl WildcardOwners {
+    pub fn is_empty(&self) -> bool {
+        self.teams.is_empty() && self.users.is_empty()
+    }
+}
+
+/// Parse the top-level `* ...` rule from CODEOWNERS content.
+///
+/// Returns `None` when the file has no `*` rule at all — an empty file, or one
+/// that lost its path pattern and lists bare owners. Such a file assigns no
+/// reviewers, which is what GitHub does with it too. A rule that is present but
+/// names nobody yields an empty `WildcardOwners`.
+///
+/// Only the first `*` rule is considered, matching GitHub's last-match-wins
+/// semantics for the top-level default.
+pub fn parse_wildcard(content: &str) -> Option<WildcardOwners> {
     for line in content.lines() {
         let line = line.trim();
 
@@ -14,27 +31,44 @@ pub fn extract_teams(content: &str) -> Vec<String> {
         }
 
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.first() == Some(&"*") {
-            for part in &parts[1..] {
-                if let Some(team) = parse_owner(part) {
-                    if seen.insert(team.clone()) {
-                        teams.push(team);
-                    }
-                }
-            }
-            return teams;
+        if parts.first() != Some(&"*") {
+            continue;
         }
+
+        let mut owners = WildcardOwners::default();
+        let mut seen = std::collections::HashSet::new();
+
+        for part in &parts[1..] {
+            let Some(owner) = part.strip_prefix('@') else {
+                continue;
+            };
+            if !seen.insert(owner.to_string()) {
+                continue;
+            }
+            match owner.split_once('/') {
+                Some((_org, team)) => owners.teams.push(team.to_string()),
+                None => owners.users.push(owner.to_string()),
+            }
+        }
+
+        return Some(owners);
     }
-    teams
+
+    None
 }
 
-fn parse_owner(owner: &str) -> Option<String> {
-    let owner = owner.strip_prefix('@')?;
-    if let Some((_org, team)) = owner.split_once('/') {
-        Some(team.to_string())
-    } else {
-        None
-    }
+/// True when GitHub would assign at least one reviewer from this file.
+pub fn has_usable_rule(content: &str) -> bool {
+    parse_wildcard(content).is_some_and(|o| !o.is_empty())
+}
+
+/// Extract all top-level teams from CODEOWNERS content.
+///
+/// Looks for the `* @org/team-name` rule and strips the `@org/` prefix.
+/// Returns all teams on the wildcard rule, deduplicated, preserving order.
+/// Individual users on the rule are not teams and are not returned.
+pub fn extract_teams(content: &str) -> Vec<String> {
+    parse_wildcard(content).map(|o| o.teams).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -94,5 +128,46 @@ mod tests {
             extract_teams("# just comments\n# nothing else\n"),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn wildcard_splits_teams_from_users() {
+        let owners = parse_wildcard("* @acme/team-a @alice @acme/team-b @bob\n").unwrap();
+        assert_eq!(owners.teams, vec!["team-a", "team-b"]);
+        assert_eq!(owners.users, vec!["alice", "bob"]);
+    }
+
+    #[test]
+    fn usable_when_rule_names_only_users() {
+        // Valid CODEOWNERS — GitHub assigns these reviewers — it just has no teams.
+        let content = "* @alice\n";
+        assert!(has_usable_rule(content));
+        assert_eq!(extract_teams(content), Vec::<String>::new());
+    }
+
+    #[test]
+    fn unusable_when_no_wildcard_rule() {
+        assert_eq!(parse_wildcard("@acme/team-a @acme/team-b\n"), None);
+        assert!(!has_usable_rule("@acme/team-a @acme/team-b\n"));
+    }
+
+    #[test]
+    fn unusable_when_file_is_empty_or_comments_only() {
+        assert_eq!(parse_wildcard(""), None);
+        assert!(!has_usable_rule(""));
+        assert!(!has_usable_rule("# managed by terraform\n"));
+    }
+
+    #[test]
+    fn unusable_when_wildcard_names_nobody() {
+        let owners = parse_wildcard("* \n").unwrap();
+        assert!(owners.is_empty());
+        assert!(!has_usable_rule("* \n"));
+    }
+
+    #[test]
+    fn path_scoped_rules_do_not_make_a_file_usable() {
+        // GitHub honors these, but they are not a top-level default owner.
+        assert!(!has_usable_rule("/src @acme/backend\n"));
     }
 }
