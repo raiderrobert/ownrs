@@ -137,7 +137,7 @@ fn write_fixtures(world: &mut OwnrsWorld) {
         let name = &repo.repo_name;
 
         // CODEOWNERS
-        let co_key = format!("content_{ORG}_{name}_codeowners");
+        let co_key = format!("content_{ORG}_{name}_codeowners_v2");
         let co_value: serde_json::Value = if repo.codeowners_teams.is_empty() {
             serde_json::Value::Null
         } else {

@@ -52,7 +52,7 @@ ownrs repo my-org/my-repo --suggest missing,stale,partial
 
 ownrs compares three sources for each repo:
 
-- **CODEOWNERS** — who reviews PRs (`* @org/team-name`)
+- **CODEOWNERS** — who reviews PRs (`* @org/team-name`), read from `CODEOWNERS`, `.github/CODEOWNERS`, or `docs/CODEOWNERS`. The first file GitHub would actually assign reviewers from wins; a file that assigns nobody — empty, comments only, or a bare owner list that lost its `*` path pattern — is skipped in favor of the next location.
 - **catalog-info.yaml** — who's listed in the Backstage service catalog (`spec.owner`)
 - **GitHub admin teams** — which teams actually have admin access to the repo
 
