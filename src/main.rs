@@ -157,17 +157,14 @@ async fn run_org(
             .catalog_info
             .as_deref()
             .and_then(sources::catalog::extract_owner);
-        let codeowners_teams = source
-            .codeowners
-            .as_deref()
-            .map(sources::codeowners::extract_teams)
-            .unwrap_or_default();
+        let codeowners =
+            sources::codeowners::CodeownersState::from_content(source.codeowners.as_deref());
 
         let result = reconcile(
             &source.repo_name,
             pushed_at,
             catalog_owner.as_deref(),
-            &codeowners_teams,
+            &codeowners,
             &source.admin_teams,
             &valid_teams,
             strict,
@@ -288,17 +285,14 @@ async fn run_repo(
         .catalog_info
         .as_deref()
         .and_then(sources::catalog::extract_owner);
-    let codeowners_teams = source
-        .codeowners
-        .as_deref()
-        .map(sources::codeowners::extract_teams)
-        .unwrap_or_default();
+    let codeowners =
+        sources::codeowners::CodeownersState::from_content(source.codeowners.as_deref());
 
     let mut result = reconcile(
         &source.repo_name,
         None,
         catalog_owner.as_deref(),
-        &codeowners_teams,
+        &codeowners,
         &source.admin_teams,
         &valid_teams,
         strict,
