@@ -9,7 +9,7 @@ use ownrs::cli::{self, OutputFormat, StatusFilter, SuggestMode};
 use ownrs::config::{Config, Scope};
 use ownrs::github::client::GitHubClient;
 use ownrs::github::members::fetch_team_members;
-use ownrs::github::repos::list_repos;
+use ownrs::github::repos::{list_repos, RepoFilters};
 use ownrs::github::teams::fetch_team_slugs;
 use ownrs::output;
 use ownrs::reconcile::alignment::reconcile;
@@ -121,7 +121,8 @@ async fn run_org(
     );
     sp.set_message("Fetching repos...");
     sp.enable_steady_tick(std::time::Duration::from_millis(100));
-    let mut repos = list_repos(client, org, cache, config.refresh, |count| {
+    let filters = RepoFilters::new(&config.exclude_repos, &config.visibility);
+    let mut repos = list_repos(client, org, cache, config.refresh, &filters, |count| {
         sp.set_message(format!("Fetching repos... {count} so far"));
     })
     .await?;

@@ -105,6 +105,10 @@ Global:
   --strict             Require exact team set match across sources
   --cache-ttl <SECS>   Cache TTL in seconds (default: 86400)
   --token <TOKEN>      GitHub token (default: GITHUB_TOKEN env var)
+  --exclude <KINDS>    Repo types to skip, comma-separated: archived, forks, empty,
+                       template, mirror, none (default: archived,forks)
+  --visibility <VIS>   Limit to these visibilities, comma-separated: public,
+                       private, internal (default: all)
 
 org subcommand:
   --limit <N>          Audit only first N repos
