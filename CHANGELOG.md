@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.6](https://github.com/raiderrobert/ownrs/compare/v0.1.5...v0.1.6) (2026-08-27)
+
+
+### Features
+
+* add --exclude and --visibility flags for repo filtering ([#21](https://github.com/raiderrobert/ownrs/issues/21)) ([08113d6](https://github.com/raiderrobert/ownrs/commit/08113d6b837f85ad1086cfe946a9ab59b37a16fa))
+* add codeowners-invalid status for files that assign no reviewers ([#26](https://github.com/raiderrobert/ownrs/issues/26)) ([390340f](https://github.com/raiderrobert/ownrs/commit/390340fefcb5203afa3a7279bfc6bba599dc98a3))
+
+
+### Bug Fixes
+
+* fall through to next CODEOWNERS location when one assigns nobody ([#25](https://github.com/raiderrobert/ownrs/issues/25)) ([f96b877](https://github.com/raiderrobert/ownrs/commit/f96b87792a698c0f6a5493a6e02f006b89eaa3c7))
+
 ## [0.1.5](https://github.com/raiderrobert/ownrs/compare/v0.1.4...v0.1.5) (2026-04-20)
 
 
