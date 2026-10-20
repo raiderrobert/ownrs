@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/raiderrobert/ownrs/compare/v0.1.6...v0.1.7) (2026-10-20)
+
+
+### Bug Fixes
+
+* check .github/CODEOWNERS before the root file ([#29](https://github.com/raiderrobert/ownrs/issues/29)) ([87297aa](https://github.com/raiderrobert/ownrs/commit/87297aacb070d463db0f8c7d546bb7caa46315f0)), closes [#28](https://github.com/raiderrobert/ownrs/issues/28)
+* stop reporting and caching API errors as missing ownership ([#31](https://github.com/raiderrobert/ownrs/issues/31)) ([9b4e993](https://github.com/raiderrobert/ownrs/commit/9b4e99349d57235ed0941af5368125c757390345)), closes [#30](https://github.com/raiderrobert/ownrs/issues/30)
+
 ## [0.1.6](https://github.com/raiderrobert/ownrs/compare/v0.1.5...v0.1.6) (2026-08-27)
 
 
