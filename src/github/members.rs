@@ -6,6 +6,7 @@ use serde::Deserialize;
 use crate::cache::file_cache::FileCache;
 
 use super::client::GitHubClient;
+use super::failure::{classify, Failure};
 
 #[derive(Deserialize)]
 struct TeamMember {
@@ -32,7 +33,7 @@ pub async fn fetch_team_members(
     let mut membership: HashMap<String, Vec<String>> = HashMap::new();
 
     for slug in team_slugs {
-        let members = fetch_members_for_team(&client.octocrab, org, slug).await;
+        let members = fetch_members_for_team(&client.octocrab, org, slug).await?;
         membership.insert(slug.clone(), members);
     }
 
@@ -44,7 +45,7 @@ async fn fetch_members_for_team(
     octocrab: &octocrab::Octocrab,
     org: &str,
     team_slug: &str,
-) -> Vec<String> {
+) -> Result<Vec<String>, octocrab::Error> {
     let mut logins = Vec::new();
     let mut page: u32 = 1;
 
@@ -68,16 +69,12 @@ async fn fetch_members_for_team(
                 }
                 page += 1;
             }
-            Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("403") || err_str.contains("404") {
-                    break;
-                }
-                eprintln!("Warning: failed to fetch members for {org}/{team_slug}: {e}");
-                break;
-            }
+            Err(error) => match classify(&error) {
+                Failure::NotFound | Failure::Forbidden => break,
+                _ => return Err(error),
+            },
         }
     }
 
-    logins
+    Ok(logins)
 }

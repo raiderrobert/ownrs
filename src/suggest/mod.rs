@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use crate::cache::file_cache::FileCache;
 use crate::github::client::GitHubClient;
+use crate::github::failure::{classify, Failure};
 use types::{SuggestionResult, TeamSuggestion};
 
 #[derive(Deserialize)]
@@ -84,10 +85,10 @@ pub async fn fetch_commit_authors(
                 }
                 page += 1;
             }
-            Err(e) => {
-                eprintln!("Warning: failed to fetch commits for {org}/{repo}: {e}");
-                break;
-            }
+            Err(error) => match classify(&error) {
+                Failure::EmptyRepository => break,
+                _ => return Err(error.into()),
+            },
         }
     }
 
@@ -151,24 +152,18 @@ pub async fn fetch_pr_reviewers(
                 }
                 page += 1;
             }
-            Err(e) => {
-                eprintln!("Warning: failed to fetch PRs for {org}/{repo}: {e}");
-                break;
-            }
+            Err(error) => return Err(error.into()),
         }
     }
 
     // Fetch reviews for each PR
     for pr_number in pr_numbers {
         let route = format!("/repos/{org}/{repo}/pulls/{pr_number}/reviews");
-        let result: Result<Vec<Review>, _> =
-            client.octocrab.get(&route, None::<&[(&str, &str)]>).await;
+        let reviews: Vec<Review> = client.octocrab.get(&route, None::<&[(&str, &str)]>).await?;
 
-        if let Ok(reviews) = result {
-            for review in reviews {
-                if let Some(user) = review.user {
-                    *reviewers.entry(user.login).or_insert(0) += 1;
-                }
+        for review in reviews {
+            if let Some(user) = review.user {
+                *reviewers.entry(user.login).or_insert(0) += 1;
             }
         }
     }
