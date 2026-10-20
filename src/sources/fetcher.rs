@@ -17,7 +17,7 @@ pub struct RepoSources {
     pub admin_teams: Vec<String>,
 }
 
-const CODEOWNERS_PATHS: &[&str] = &["CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS"];
+const CODEOWNERS_PATHS: &[&str] = &[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
 const CATALOG_PATH: &str = "catalog-info.yaml";
 
 #[derive(Deserialize)]
@@ -41,7 +41,7 @@ pub async fn fetch_all(
         let org = org.to_string();
         let name = name.clone();
         let octocrab = client.octocrab.clone();
-        let cache_key_co = format!("content_{org}_{name}_codeowners_v2");
+        let cache_key_co = codeowners_cache_key(&org, &name);
         let cache_key_cat = format!("content_{org}_{name}_catalog");
         let cache_key_admin = format!("admin_teams_{org}_{name}");
 
@@ -106,7 +106,7 @@ pub async fn fetch_all(
     let mut results = Vec::new();
     for handle in handles {
         if let Ok(sources) = handle.await {
-            let cache_key_co = format!("content_{org}_{}_codeowners", sources.repo_name);
+            let cache_key_co = codeowners_cache_key(org, &sources.repo_name);
             let cache_key_cat = format!("content_{org}_{}_catalog", sources.repo_name);
             let cache_key_admin = format!("admin_teams_{org}_{}", sources.repo_name);
             let _ = cache.set(&cache_key_co, &sources.codeowners);
@@ -117,6 +117,10 @@ pub async fn fetch_all(
         }
     }
     results
+}
+
+fn codeowners_cache_key(org: &str, repo: &str) -> String {
+    format!("content_{org}_{repo}_codeowners_v3")
 }
 
 /// Resolve which CODEOWNERS file to use, walking `paths` in GitHub's precedence order.
@@ -229,8 +233,6 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
 
-    const PATHS: &[&str] = &["CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS"];
-
     /// Fake fetcher over a fixed path -> content map, recording lookup order.
     fn fake<'a>(
         files: &'a [(&'a str, &'a str)],
@@ -246,88 +248,90 @@ mod tests {
         }
     }
 
+    type Case = (
+        &'static str,
+        &'static [(&'static str, &'static str)],
+        Option<&'static str>,
+        &'static [&'static str],
+    );
+
     #[tokio::test]
-    async fn prefers_root_and_stops_early() {
-        let files = [
-            ("CODEOWNERS", "* @acme/team-a\n"),
-            (".github/CODEOWNERS", "* @acme/team-b\n"),
+    async fn resolves_codeowners_in_github_precedence_order() {
+        let cases: &[Case] = &[
+            (
+                "prefers .github over root and stops early",
+                &[
+                    (".github/CODEOWNERS", "* @acme/team-a\n"),
+                    ("CODEOWNERS", "* @acme/team-b\n"),
+                ],
+                Some("* @acme/team-a\n"),
+                &[".github/CODEOWNERS"],
+            ),
+            (
+                "keeps a .github file that names only users",
+                &[
+                    (".github/CODEOWNERS", "* @alice\n"),
+                    ("CODEOWNERS", "* @acme/team-b\n"),
+                ],
+                Some("* @alice\n"),
+                &[".github/CODEOWNERS"],
+            ),
+            (
+                "uses root when .github is absent",
+                &[
+                    ("CODEOWNERS", "* @acme/team-b\n"),
+                    ("docs/CODEOWNERS", "* @acme/team-c\n"),
+                ],
+                Some("* @acme/team-b\n"),
+                &[".github/CODEOWNERS", "CODEOWNERS"],
+            ),
+            (
+                "falls through past an empty .github file",
+                &[
+                    (".github/CODEOWNERS", ""),
+                    ("CODEOWNERS", "* @acme/team-b\n"),
+                ],
+                Some("* @acme/team-b\n"),
+                &[".github/CODEOWNERS", "CODEOWNERS"],
+            ),
+            (
+                "falls through when .github has no usable rule",
+                &[
+                    (".github/CODEOWNERS", "@acme/team-a @acme/team-b\n"),
+                    ("CODEOWNERS", "* @acme/team-a\n"),
+                ],
+                Some("* @acme/team-a\n"),
+                &[".github/CODEOWNERS", "CODEOWNERS"],
+            ),
+            (
+                "skips absent paths",
+                &[("docs/CODEOWNERS", "* @acme/team-c\n")],
+                Some("* @acme/team-c\n"),
+                &[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
+            ),
+            (
+                "keeps first found when nothing is usable",
+                &[
+                    (".github/CODEOWNERS", "@acme/team-a\n"),
+                    ("CODEOWNERS", "# only a comment\n"),
+                ],
+                Some("@acme/team-a\n"),
+                &[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
+            ),
+            (
+                "none when no file exists",
+                &[],
+                None,
+                &[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"],
+            ),
         ];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
 
-        assert_eq!(got.as_deref(), Some("* @acme/team-a\n"));
-        assert_eq!(seen.borrow().as_slice(), &["CODEOWNERS".to_string()]);
-    }
+        for (name, files, want, want_seen) in cases {
+            let seen = RefCell::new(Vec::new());
+            let got = resolve_codeowners(CODEOWNERS_PATHS, fake(files, &seen)).await;
 
-    #[tokio::test]
-    async fn keeps_a_root_file_that_names_only_users() {
-        // Valid CODEOWNERS with no teams — must not be mistaken for unusable.
-        let files = [
-            ("CODEOWNERS", "* @alice\n"),
-            (".github/CODEOWNERS", "* @acme/team-b\n"),
-        ];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
-
-        assert_eq!(got.as_deref(), Some("* @alice\n"));
-        assert_eq!(seen.borrow().as_slice(), &["CODEOWNERS".to_string()]);
-    }
-
-    #[tokio::test]
-    async fn falls_through_past_an_empty_root_file() {
-        let files = [
-            ("CODEOWNERS", ""),
-            (".github/CODEOWNERS", "* @acme/team-b\n"),
-        ];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
-
-        assert_eq!(got.as_deref(), Some("* @acme/team-b\n"));
-    }
-
-    #[tokio::test]
-    async fn falls_through_when_root_has_no_usable_rule() {
-        let files = [
-            ("CODEOWNERS", "@acme/team-a @acme/team-b\n"),
-            (".github/CODEOWNERS", "* @acme/team-a\n"),
-        ];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
-
-        assert_eq!(got.as_deref(), Some("* @acme/team-a\n"));
-        assert_eq!(
-            seen.borrow().as_slice(),
-            &["CODEOWNERS".to_string(), ".github/CODEOWNERS".to_string()]
-        );
-    }
-
-    #[tokio::test]
-    async fn skips_absent_paths() {
-        let files = [("docs/CODEOWNERS", "* @acme/team-c\n")];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
-
-        assert_eq!(got.as_deref(), Some("* @acme/team-c\n"));
-        assert_eq!(seen.borrow().len(), 3);
-    }
-
-    #[tokio::test]
-    async fn keeps_first_found_when_nothing_is_usable() {
-        let files = [
-            ("CODEOWNERS", "@acme/team-a\n"),
-            (".github/CODEOWNERS", "# only a comment\n"),
-        ];
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&files, &seen)).await;
-
-        assert_eq!(got.as_deref(), Some("@acme/team-a\n"));
-    }
-
-    #[tokio::test]
-    async fn none_when_no_file_exists() {
-        let seen = RefCell::new(Vec::new());
-        let got = resolve_codeowners(PATHS, fake(&[], &seen)).await;
-
-        assert_eq!(got, None);
+            assert_eq!(got.as_deref(), *want, "{name}");
+            assert_eq!(seen.borrow().as_slice(), *want_seen, "{name}");
+        }
     }
 }
