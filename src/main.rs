@@ -147,6 +147,7 @@ async fn run_org(
 
     let all_sources = fetch_all(client, org, &repo_names, cache, config.refresh).await;
     pb.finish_and_clear();
+    let all_sources = all_sources?;
 
     // Reconcile
     let mut ownership_results = Vec::new();
@@ -275,7 +276,7 @@ async fn run_repo(
     sp.finish_with_message(format!("Fetched {} teams", valid_teams.len()));
 
     let repo_names = vec![repo.to_string()];
-    let sources = fetch_all(client, org, &repo_names, cache, config.refresh).await;
+    let sources = fetch_all(client, org, &repo_names, cache, config.refresh).await?;
 
     let source = sources
         .into_iter()

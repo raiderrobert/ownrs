@@ -135,7 +135,7 @@ Suggestion Options:
 |------|---------|
 | 0 | Success (or no repos matched filter) |
 | 1 | Filter matched results |
-| 2 | Runtime error |
+| 2 | Runtime error, including any GitHub API failure other than a 404. Nothing is reported, and repos that failed are not cached |
 
 ## License
 

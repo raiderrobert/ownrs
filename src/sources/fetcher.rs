@@ -1,4 +1,3 @@
-use reqwest::StatusCode;
 use serde::Deserialize;
 use std::future::Future;
 use std::sync::Arc;
@@ -6,6 +5,7 @@ use tokio::sync::Semaphore;
 
 use crate::cache::file_cache::FileCache;
 use crate::github::client::GitHubClient;
+use crate::github::failure::{classify, describe, Failure};
 use crate::sources::codeowners;
 
 /// Raw source files fetched for a single repo.
@@ -15,6 +15,12 @@ pub struct RepoSources {
     pub codeowners: Option<String>,
     pub catalog_info: Option<String>,
     pub admin_teams: Vec<String>,
+}
+
+enum Outcome {
+    Cached(RepoSources),
+    Fetched(RepoSources),
+    Failed(String, octocrab::Error),
 }
 
 const CODEOWNERS_PATHS: &[&str] = &[".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
@@ -32,7 +38,7 @@ pub async fn fetch_all(
     repo_names: &[String],
     cache: &FileCache,
     refresh: bool,
-) -> Vec<RepoSources> {
+) -> anyhow::Result<Vec<RepoSources>> {
     let semaphore = Arc::new(Semaphore::new(20));
     let mut handles = Vec::new();
 
@@ -61,62 +67,80 @@ pub async fn fetch_all(
             None
         };
 
-        // If all are cached, skip the network fetch
         if let (Some(co), Some(cat), Some(admin)) =
             (cached_co.clone(), cached_cat.clone(), cached_admin.clone())
         {
             handles.push(tokio::spawn(async move {
-                RepoSources {
+                Outcome::Cached(RepoSources {
                     repo_name: name,
                     codeowners: co,
                     catalog_info: cat,
                     admin_teams: admin,
-                }
+                })
             }));
             continue;
         }
 
         handles.push(tokio::spawn(async move {
             let _permit = sem.acquire().await.unwrap();
-
-            let codeowners = match cached_co {
-                Some(v) => v,
-                None => fetch_codeowners(&octocrab, &org, &name).await,
+            let fetched = async {
+                let codeowners = match cached_co {
+                    Some(v) => v,
+                    None => fetch_codeowners(&octocrab, &org, &name).await?,
+                };
+                let catalog_info = match cached_cat {
+                    Some(v) => v,
+                    None => fetch_file_content(&octocrab, &org, &name, CATALOG_PATH).await?,
+                };
+                let admin_teams = match cached_admin {
+                    Some(v) => v,
+                    None => fetch_admin_teams(&octocrab, &org, &name).await?,
+                };
+                Ok::<_, octocrab::Error>((codeowners, catalog_info, admin_teams))
             };
 
-            let catalog_info = match cached_cat {
-                Some(v) => v,
-                None => fetch_file_content(&octocrab, &org, &name, CATALOG_PATH).await,
-            };
-
-            let admin_teams = match cached_admin {
-                Some(v) => v,
-                None => fetch_admin_teams(&octocrab, &org, &name).await,
-            };
-
-            RepoSources {
-                repo_name: name,
-                codeowners,
-                catalog_info,
-                admin_teams,
+            match fetched.await {
+                Ok((codeowners, catalog_info, admin_teams)) => Outcome::Fetched(RepoSources {
+                    repo_name: name,
+                    codeowners,
+                    catalog_info,
+                    admin_teams,
+                }),
+                Err(error) => Outcome::Failed(name, error),
             }
         }));
     }
 
     let mut results = Vec::new();
+    let mut failures = Vec::new();
     for handle in handles {
-        if let Ok(sources) = handle.await {
-            let cache_key_co = codeowners_cache_key(org, &sources.repo_name);
-            let cache_key_cat = format!("content_{org}_{}_catalog", sources.repo_name);
-            let cache_key_admin = format!("admin_teams_{org}_{}", sources.repo_name);
-            let _ = cache.set(&cache_key_co, &sources.codeowners);
-            let _ = cache.set(&cache_key_cat, &sources.catalog_info);
-            let _ = cache.set(&cache_key_admin, &sources.admin_teams);
-
-            results.push(sources);
+        match handle.await? {
+            Outcome::Cached(sources) => results.push(sources),
+            Outcome::Fetched(sources) => {
+                let name = &sources.repo_name;
+                let _ = cache.set(&codeowners_cache_key(org, name), &sources.codeowners);
+                let _ = cache.set(
+                    &format!("content_{org}_{name}_catalog"),
+                    &sources.catalog_info,
+                );
+                let _ = cache.set(&format!("admin_teams_{org}_{name}"), &sources.admin_teams);
+                results.push(sources);
+            }
+            Outcome::Failed(name, error) => failures.push((name, error)),
         }
     }
-    results
+
+    if let Some((name, error)) = failures.first() {
+        anyhow::bail!(
+            "failed to fetch ownership sources for {} of {} repos (first: {org}/{name}: {}). \
+             Nothing was reported. Fetched repos are cached; rerun without --refresh to retry the rest.",
+            failures.len(),
+            repo_names.len(),
+            describe(error),
+        );
+    }
+
+    Ok(results)
 }
 
 fn codeowners_cache_key(org: &str, repo: &str) -> String {
@@ -128,21 +152,21 @@ fn codeowners_cache_key(org: &str, repo: &str) -> String {
 /// Prefers the first file GitHub would actually assign reviewers from. If every
 /// file present is unusable — an empty file, or a bare owner list that lost its
 /// `*` pattern — returns the first one found, so callers can still tell
-/// "found but unusable" from "absent".
-async fn resolve_codeowners<F, Fut>(paths: &[&str], mut fetch: F) -> Option<String>
+/// "found but unusable" from "absent". A failed fetch stops the walk.
+async fn resolve_codeowners<F, Fut, E>(paths: &[&str], mut fetch: F) -> Result<Option<String>, E>
 where
     F: FnMut(String) -> Fut,
-    Fut: Future<Output = Option<String>>,
+    Fut: Future<Output = Result<Option<String>, E>>,
 {
     let mut fallback = None;
 
     for path in paths {
-        let Some(content) = fetch(path.to_string()).await else {
+        let Some(content) = fetch(path.to_string()).await? else {
             continue;
         };
 
         if codeowners::has_usable_rule(&content) {
-            return Some(content);
+            return Ok(Some(content));
         }
 
         if fallback.is_none() {
@@ -150,10 +174,14 @@ where
         }
     }
 
-    fallback
+    Ok(fallback)
 }
 
-async fn fetch_codeowners(octocrab: &octocrab::Octocrab, org: &str, repo: &str) -> Option<String> {
+async fn fetch_codeowners(
+    octocrab: &octocrab::Octocrab,
+    org: &str,
+    repo: &str,
+) -> Result<Option<String>, octocrab::Error> {
     resolve_codeowners(CODEOWNERS_PATHS, |path| async move {
         fetch_file_content(octocrab, org, repo, &path).await
     })
@@ -165,7 +193,7 @@ async fn fetch_file_content(
     org: &str,
     repo: &str,
     path: &str,
-) -> Option<String> {
+) -> Result<Option<String>, octocrab::Error> {
     let result = octocrab
         .repos(org, repo)
         .get_content()
@@ -175,15 +203,22 @@ async fn fetch_file_content(
         .await;
 
     match result {
-        Ok(content) => content
+        Ok(content) => Ok(content
             .items
             .first()
-            .and_then(|item| item.decoded_content()),
-        Err(_) => None,
+            .and_then(|item| item.decoded_content())),
+        Err(error) => match classify(&error) {
+            Failure::NotFound => Ok(None),
+            _ => Err(error),
+        },
     }
 }
 
-async fn fetch_admin_teams(octocrab: &octocrab::Octocrab, org: &str, repo: &str) -> Vec<String> {
+async fn fetch_admin_teams(
+    octocrab: &octocrab::Octocrab,
+    org: &str,
+    repo: &str,
+) -> Result<Vec<String>, octocrab::Error> {
     let mut slugs = Vec::new();
     let mut page: u32 = 1;
 
@@ -208,24 +243,14 @@ async fn fetch_admin_teams(octocrab: &octocrab::Octocrab, org: &str, repo: &str)
                 }
                 page += 1;
             }
-            Err(e) => {
-                match &e {
-                    octocrab::Error::GitHub { source, .. }
-                        if source.status_code == StatusCode::FORBIDDEN
-                            || source.status_code == StatusCode::NOT_FOUND =>
-                    {
-                        // Repo not accessible with this token — expected, skip silently
-                    }
-                    _ => {
-                        eprintln!("Warning: failed to fetch teams for {org}/{repo}: {e}");
-                    }
-                }
-                break;
-            }
+            Err(error) => match classify(&error) {
+                Failure::NotFound | Failure::Forbidden => break,
+                _ => return Err(error),
+            },
         }
     }
 
-    slugs
+    Ok(slugs)
 }
 
 #[cfg(test)]
@@ -237,14 +262,14 @@ mod tests {
     fn fake<'a>(
         files: &'a [(&'a str, &'a str)],
         seen: &'a RefCell<Vec<String>>,
-    ) -> impl FnMut(String) -> std::future::Ready<Option<String>> + 'a {
+    ) -> impl FnMut(String) -> std::future::Ready<Result<Option<String>, &'static str>> + 'a {
         move |path: String| {
             seen.borrow_mut().push(path.clone());
             let hit = files
                 .iter()
                 .find(|(p, _)| *p == path)
                 .map(|(_, c)| c.to_string());
-            std::future::ready(hit)
+            std::future::ready(Ok(hit))
         }
     }
 
@@ -330,8 +355,27 @@ mod tests {
             let seen = RefCell::new(Vec::new());
             let got = resolve_codeowners(CODEOWNERS_PATHS, fake(files, &seen)).await;
 
-            assert_eq!(got.as_deref(), *want, "{name}");
+            assert_eq!(got, Ok(want.map(str::to_string)), "{name}");
             assert_eq!(seen.borrow().as_slice(), *want_seen, "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn stops_at_a_failed_fetch() {
+        let seen = RefCell::new(Vec::new());
+        let got = resolve_codeowners(CODEOWNERS_PATHS, |path: String| {
+            seen.borrow_mut().push(path.clone());
+            std::future::ready(match path.as_str() {
+                ".github/CODEOWNERS" => Err("rate limited"),
+                _ => Ok(Some("* @acme/team-b\n".to_string())),
+            })
+        })
+        .await;
+
+        assert_eq!(got, Err("rate limited"));
+        assert_eq!(
+            seen.borrow().as_slice(),
+            &[".github/CODEOWNERS".to_string()]
+        );
     }
 }
